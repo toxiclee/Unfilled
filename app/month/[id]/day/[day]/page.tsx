@@ -1,14 +1,17 @@
 import React, { Suspense } from "react";
-import MonthClient from "./MonthClient";
+import DayClient from "./DayClient";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default function MonthPage({ params }: { params: { id: string } }) {
+export default function DayPage({
+  params,
+}: {
+  params: { id: string; day: string };
+}) {
   return (
     <Suspense fallback={null}>
-      <MonthClient monthId={params.id} />
+      <DayClient monthId={params.id} day={params.day} />
     </Suspense>
   );
 }
-
