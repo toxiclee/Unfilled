@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { buildMonthGrid } from "@/lib/calendar";
+import { buildMonthGrid } from "../../../lib/calendar";
 
 /* ------------------ Types & Utils ------------------ */
 type CalendarModeId = "poster" | "grid" | "film" | "instant";
