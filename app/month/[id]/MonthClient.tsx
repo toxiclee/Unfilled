@@ -9,7 +9,8 @@ import { buildMonthGrid } from "../../../lib/calendar";
 /* ------------------ Types & Utils ------------------ */
 type CalendarModeId = "poster" | "grid" | "film" | "instant";
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+// Show weekdays starting from Monday to match the provided design
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
 // 你现在只放 4 张默认图：public/defaults/01.jpg ... 04.jpg
 const DEFAULT_COVERS = ["/defaults/01.jpg", "/defaults/02.jpg", "/defaults/03.jpg", "/defaults/04.jpg"] as const;
@@ -166,7 +167,7 @@ function PosterMode({ year, monthIndex0, ym, mode, cells }: any) {
                 key={i}
                 href={`/month/${ym}/day/${cell.day}?mode=${mode}`}
                 style={{
-                  height: 60,
+                  aspectRatio: "1/1",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",

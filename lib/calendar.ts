@@ -11,7 +11,10 @@ export function buildMonthGrid(year: number, monthIndex0: number) {
   const cells: CalendarCell[] = [];
 
   // leading empties
-  for (let i = 0; i < firstWeekday; i++) cells.push({ type: "empty" });
+  // Adjust so the calendar grid starts on Monday.
+  // getDay(): 0=Sun..6=Sat. For Monday-first, compute leading empties as:
+  const leading = (firstWeekday + 6) % 7; // 0=>6, 1=>0, 2=>1, ...
+  for (let i = 0; i < leading; i++) cells.push({ type: "empty" });
 
   // days
   for (let d = 1; d <= daysInMonth; d++) cells.push({ type: "day", day: d });
