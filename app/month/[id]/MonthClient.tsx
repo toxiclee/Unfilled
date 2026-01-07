@@ -105,12 +105,43 @@ function Header({
       </div>
 
       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-        <div style={{ display: "flex", gap: 6, marginRight: 20 }}>
-          <Link href={`/month/${formatYM(prev.year, prev.monthIndex0)}?mode=${mode}`} style={btnStyle(false)}>
-            PREV
+        <div style={{ display: "flex", gap: 8, marginRight: 12 }}>
+          <Link
+            href={`/month/${formatYM(prev.year, prev.monthIndex0)}?mode=${mode}`}
+            aria-label="Previous month"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              border: "1px solid rgba(128,128,128,0.2)",
+              background: "transparent",
+              color: "inherit",
+              textDecoration: "none",
+            }}
+          >
+            ←
           </Link>
-          <Link href={`/month/${formatYM(next.year, next.monthIndex0)}?mode=${mode}`} style={btnStyle(false)}>
-            NEXT
+
+          <Link
+            href={`/month/${formatYM(next.year, next.monthIndex0)}?mode=${mode}`}
+            aria-label="Next month"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              border: "1px solid rgba(128,128,128,0.2)",
+              background: "transparent",
+              color: "inherit",
+              textDecoration: "none",
+            }}
+          >
+            →
           </Link>
         </div>
 
