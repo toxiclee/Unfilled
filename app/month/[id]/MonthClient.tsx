@@ -4,7 +4,21 @@ import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
 import { buildMonthGrid } from "../../../lib/calendar";
+
+const ChevronLeft = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="1" strokeLinecap="square"/>
+  </svg>
+);
+
+const ChevronRight = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M9 6L15 12L9 18" stroke="currentColor" strokeWidth="1" strokeLinecap="square"/>
+  </svg>
+);
 
 /* ------------------ Types & Utils ------------------ */
 type CalendarModeId = "poster" | "grid" | "film" | "instant";
@@ -121,7 +135,7 @@ function Header({
             onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.5")}
             onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
           >
-            <span style={{ fontSize: 18 }}>—&gt;</span>
+            <ChevronLeft />
           </Link>
 
           <Link
@@ -139,7 +153,7 @@ function Header({
             onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.5")}
             onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
           >
-            <span style={{ fontSize: 18 }}>&#8594;</span>
+            <ChevronRight />
           </Link>
         </div>
 
@@ -156,12 +170,37 @@ function Header({
 /* ------------------ Mode A: Poster Mode ------------------ */
 function PosterMode({ year, monthIndex0, ym, mode, cells }: any) {
   const { coverSrc, fileInputRef, pickCover, onFileChange } = useMonthCover(ym);
+  const posterCardRef = useRef<HTMLDivElement | null>(null);
+
+  const exportPosterPDF = async (device: "desktop" | "phone" = "desktop") => {
+    try {
+      await (document as any).fonts?.ready;
+      const node = posterCardRef.current;
+      if (!node) return alert("Nothing to export");
+      const deviceSizes = {
+        desktop: { w: 1920, h: 1080 },
+        phone: { w: 1080, h: 1920 },
+      } as const;
+      const target = deviceSizes[device];
+
+      // scale capture to target width
+      const scale = Math.max(1, target.w / Math.max(1, node.clientWidth));
+      const canvas = await html2canvas(node as HTMLElement, { useCORS: true, scale });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ unit: "px", format: [target.w, target.h], orientation: target.w >= target.h ? "landscape" : "portrait" });
+      pdf.addImage(imgData, "PNG", 0, 0, target.w, target.h);
+      pdf.save(`${ym}-poster-${device}.pdf`);
+    } catch (err) {
+      console.error(err);
+      alert("Export failed — possible CORS issue with images. Try uploading a cover image or use the desktop browser.");
+    }
+  };
 
   return (
     <div style={{ maxWidth: 1000, margin: "0 auto", padding: "40px 20px", color: "#000" }}>
       <Header year={year} monthIndex0={monthIndex0} ym={ym} mode={mode} />
 
-      <div style={{ borderRadius: 24, overflow: "hidden", border: "1px solid #eee", background: "#f9f9f9" }}>
+      <div ref={posterCardRef} style={{ borderRadius: 24, overflow: "hidden", border: "1px solid #eee", background: "#f9f9f9" }}>
         <div style={{ position: "relative", height: 400, cursor: "pointer" }} onClick={pickCover}>
           <Image src={coverSrc} alt="Month Cover" fill style={{ objectFit: "cover" }} priority />
           <div
@@ -177,6 +216,36 @@ function PosterMode({ year, monthIndex0, ym, mode, cells }: any) {
             }}
           >
             Change Cover
+          </div>
+          <div style={{ position: "absolute", bottom: 20, left: 20, display: "flex", gap: 8, alignItems: "center" }} onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => exportPosterPDF("desktop")}
+              style={{
+                background: "rgba(0,0,0,0.6)",
+                color: "#fff",
+                border: "none",
+                padding: "6px 10px",
+                borderRadius: 16,
+                cursor: "pointer",
+                fontSize: 12,
+              }}
+            >
+              Export PDF (Desktop)
+            </button>
+            <button
+              onClick={() => exportPosterPDF("phone")}
+              style={{
+                background: "rgba(0,0,0,0.3)",
+                color: "#fff",
+                border: "none",
+                padding: "6px 10px",
+                borderRadius: 16,
+                cursor: "pointer",
+                fontSize: 12,
+              }}
+            >
+              Export PDF (Phone)
+            </button>
           </div>
           <input ref={fileInputRef} type="file" hidden onChange={onFileChange} />
         </div>
@@ -218,11 +287,89 @@ function PosterMode({ year, monthIndex0, ym, mode, cells }: any) {
 
 /* ------------------ Mode B: Grid Mode (kept as your original dark grid) ------------------ */
 function GridMode({ year, monthIndex0, ym, mode, cells }: any) {
+  const gridRef = useRef<HTMLDivElement | null>(null);
+
+  const exportGridPDF = async () => {
+    try {
+      await (document as any).fonts?.ready;
+      const node = gridRef.current;
+      if (!node) return alert("Nothing to export");
+      // default to desktop size; allow larger scale based on node width
+      const deviceSizes = {
+        desktop: { w: 1920, h: 1080 },
+        phone: { w: 1080, h: 1920 },
+      } as const;
+      const target = deviceSizes.desktop;
+      const scale = Math.max(1, target.w / Math.max(1, node.clientWidth));
+      const canvas = await html2canvas(node as HTMLElement, { useCORS: true, scale });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ unit: "px", format: [target.w, target.h], orientation: target.w >= target.h ? "landscape" : "portrait" });
+      pdf.addImage(imgData, "PNG", 0, 0, target.w, target.h);
+      pdf.save(`${ym}-grid.pdf`);
+    } catch (err) {
+      console.error(err);
+      alert("Export failed — possible CORS issue with images. Try the desktop browser.");
+    }
+  };
   return (
     <div style={{ minHeight: "100vh", background: "#000", color: "#fff", padding: 40 }}>
       <Header year={year} monthIndex0={monthIndex0} ym={ym} mode={mode} />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 10, marginTop: 40 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12, gap: 8 }}>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={() => exportGridPDF()}
+            style={{
+              background: "transparent",
+              color: "#fff",
+              border: "1px solid rgba(255,255,255,0.08)",
+              padding: "6px 10px",
+              borderRadius: 16,
+              cursor: "pointer",
+              fontSize: 12,
+            }}
+          >
+            Export PDF (Desktop)
+          </button>
+          <button
+            onClick={async () => {
+              // phone export: reuse same handler but with phone target
+              try {
+                await (document as any).fonts?.ready;
+                const node = gridRef.current;
+                if (!node) return alert("Nothing to export");
+                const deviceSizes = {
+                  desktop: { w: 1920, h: 1080 },
+                  phone: { w: 1080, h: 1920 },
+                } as const;
+                const target = deviceSizes.phone;
+                const scale = Math.max(1, target.w / Math.max(1, node.clientWidth));
+                const canvas = await html2canvas(node as HTMLElement, { useCORS: true, scale });
+                const imgData = canvas.toDataURL("image/png");
+                const pdf = new jsPDF({ unit: "px", format: [target.w, target.h], orientation: target.w >= target.h ? "landscape" : "portrait" });
+                pdf.addImage(imgData, "PNG", 0, 0, target.w, target.h);
+                pdf.save(`${ym}-grid-phone.pdf`);
+              } catch (err) {
+                console.error(err);
+                alert("Export failed — possible CORS issue with images. Try the desktop browser.");
+              }
+            }}
+            style={{
+              background: "transparent",
+              color: "#fff",
+              border: "1px solid rgba(255,255,255,0.04)",
+              padding: "6px 10px",
+              borderRadius: 16,
+              cursor: "pointer",
+              fontSize: 12,
+            }}
+          >
+            Export PDF (Phone)
+          </button>
+        </div>
+      </div>
+
+      <div ref={gridRef} style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 10, marginTop: 40 }}>
         {cells.map((cell: any, i: number) =>
           cell.type === "empty" ? (
             <div key={i} />
