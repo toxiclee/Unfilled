@@ -217,14 +217,15 @@ export default function DayClient({ monthId, day }: { monthId: string; day: stri
 
         {/* 底部信息 + 注释 / 待办 */}
         <div style={{ marginTop: '40px', textAlign: 'center', width: '100%', maxWidth: 900 }}>
-          <h2 style={{ fontSize: '24px', fontWeight: '300', marginBottom: '8px' }}>DAY {day}</h2>
-          <p style={{ fontSize: '12px', opacity: 0.5, letterSpacing: '4px' }}>PROJECT UNFILLED / 2026</p>
+          <h2 className="brand-logotype" style={{ fontSize: '24px', fontWeight: 700, marginBottom: '8px' }}>DAY {day}</h2>
+          <p className="small-note">PROJECT UNFILLED / 2026</p>
 
           <div style={{ marginTop: 28, display: 'grid', gridTemplateColumns: '1fr 320px', gap: 24, alignItems: 'start' }}>
             {/* Notes area */}
             <div>
               <label style={{ display: 'block', marginBottom: 8, fontSize: 12, color: isStudio ? '#ccc' : '#666' }}>Notes</label>
               <textarea
+                className="text-body"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="Write a note or caption for this day..."
@@ -248,12 +249,12 @@ export default function DayClient({ monthId, day }: { monthId: string; day: stri
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 260, overflow: 'auto', paddingRight: 8 }}>
                 {todos.length === 0 ? (
-                  <div style={{ fontSize: 13, color: '#999' }}>No tasks yet</div>
+                  <div className="small-note">No tasks yet</div>
                 ) : (
                   todos.map((t) => (
                     <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <input type="checkbox" checked={t.done} onChange={() => toggleTodo(t.id)} />
-                      <div style={{ flex: 1, textDecoration: t.done ? 'line-through' : 'none' }}>{t.text}</div>
+                      <div className="text-body" style={{ flex: 1, textDecoration: t.done ? 'line-through' : 'none' }}>{t.text}</div>
                       <button onClick={() => removeTodo(t.id)} style={{ background: 'transparent', border: 'none', color: '#c00', cursor: 'pointer' }}>×</button>
                     </div>
                   ))
