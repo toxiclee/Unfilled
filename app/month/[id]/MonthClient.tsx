@@ -122,7 +122,7 @@ function Header({
               textDecoration: "none",
             }}
           >
-            ←
+            <—
           </Link>
 
           <Link
@@ -141,7 +141,7 @@ function Header({
               textDecoration: "none",
             }}
           >
-            →
+            —>
           </Link>
         </div>
 
