@@ -69,30 +69,42 @@ export default function DayClient({ monthId, day }: { monthId: string; day: stri
     ctx.fillRect(0, 0, width, height);
 
     if (image) {
-      await new Promise<void>((resolve) => {
+      // Try to load image with anonymous CORS so canvas export is allowed for remote images.
+      const ok = await new Promise<boolean>((resolve) => {
         const img = new Image();
+        img.crossOrigin = "anonymous";
         img.onload = () => {
-          const imgRatio = img.width / img.height;
-          const canvasRatio = width / height;
-          let dw = width,
-            dh = height,
-            dx = 0,
-            dy = 0;
-          if (imgRatio > canvasRatio) {
-            dh = height;
-            dw = img.width * (height / img.height);
-            dx = -(dw - width) / 2;
-          } else {
-            dw = width;
-            dh = img.height * (width / img.width);
-            dy = -(dh - height) / 2;
+          try {
+            const imgRatio = img.width / img.height;
+            const canvasRatio = width / height;
+            let dw = width,
+              dh = height,
+              dx = 0,
+              dy = 0;
+            if (imgRatio > canvasRatio) {
+              dh = height;
+              dw = img.width * (height / img.height);
+              dx = -(dw - width) / 2;
+            } else {
+              dw = width;
+              dh = img.height * (width / img.width);
+              dy = -(dh - height) / 2;
+            }
+            ctx.drawImage(img, dx, dy, dw, dh);
+            resolve(true);
+          } catch (e) {
+            // drawing failed (possibly CORS taint)
+            resolve(false);
           }
-          ctx.drawImage(img, dx, dy, dw, dh);
-          resolve();
         };
-        img.onerror = () => resolve();
-        img.src = image;
+        img.onerror = () => resolve(false);
+        img.src = image as string;
       });
+
+      if (!ok) {
+        // If drawing failed, notify user and continue with blank background
+        alert("Unable to include the image in export due to cross-origin restrictions. Try uploading a local file instead.");
+      }
     }
 
     ctx.fillStyle = isStudio ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.9)";
@@ -121,11 +133,28 @@ export default function DayClient({ monthId, day }: { monthId: string; day: stri
       todoY += 30;
     }
 
-    const url = canvas.toDataURL("image/png");
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `unfilled-${monthId}-${day}.png`;
-    a.click();
+    try {
+      const safeMonth = monthId || "unknown";
+      const safeDay = day || "unknown";
+
+      await new Promise<void>((resolve) =>
+        canvas.toBlob((blob) => {
+          if (!blob) return resolve();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `unfilled-${safeMonth}-${safeDay}.png`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+          resolve();
+        }, "image/png")
+      );
+    } catch (err) {
+      console.error("exportWallpaper failed", err);
+      alert("Failed to export wallpaper.");
+    }
   }
 
   function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number) {
