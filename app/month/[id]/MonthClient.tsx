@@ -113,16 +113,15 @@ function Header({
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              border: "1px solid rgba(128,128,128,0.2)",
-              background: "transparent",
+              gap: 8,
               color: "inherit",
               textDecoration: "none",
+              transition: "opacity 0.2s",
             }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.5")}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
           >
-            <—
+            <span style={{ fontSize: 18 }}>—&gt;</span>
           </Link>
 
           <Link
@@ -132,16 +131,15 @@ function Header({
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              border: "1px solid rgba(128,128,128,0.2)",
-              background: "transparent",
+              gap: 8,
               color: "inherit",
               textDecoration: "none",
+              transition: "opacity 0.2s",
             }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.5")}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
           >
-            —>
+            <span style={{ fontSize: 18 }}>&#8594;</span>
           </Link>
         </div>
 
