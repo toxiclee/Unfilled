@@ -1,185 +1,425 @@
 "use client";
 
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { useSearchParams, useParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { buildMonthGrid } from "@/lib/calendar";
 
-/* ------------------ Types ------------------ */
-type CalendarModeId = "poster" | "film" | "instant";
+type Mode = "poster" | "film" | "instant";
 
-/* ------------------ Constants ------------------ */
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+type DayCell = {
+  day: number;
+  image?: string | null;
+};
 
-/* ------------------ Utils ------------------ */
-function clampMode(mode?: string | null): CalendarModeId {
-  if (mode === "film" || mode === "instant") return mode;
-  return "poster"; // ✅ 白色默认
+const LS_KEY_PREFIX = "unfilled:month:";
+
+// ✅ 你要的一套默认图：放在 /public/defaults 下面
+// 你可以先用这些文件名占位，后面换成你自己的摄影作品也行
+const DEFAULT_IMAGES: string[] = [
+  "/defaults/01.jpg",
+  "/defaults/02.jpg",
+  "/defaults/03.jpg",
+  "/defaults/04.jpg",
+];
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
 }
 
-function getDefaultCover(mode: CalendarModeId) {
-  if (mode === "film") return "/defaults/film.jpg";
-  if (mode === "instant") return "/defaults/instant.jpg";
-  return "/defaults/poster.jpg";
+function safeRead(key: string): any | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
 
-/* ------------------ Cover Hook ------------------ */
-function useMonthCover(ym: string, mode: CalendarModeId) {
-  const key = `unfilled:cover:${ym}:${mode}`;
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [coverSrc, setCoverSrc] = useState<string>(getDefaultCover(mode));
+function safeWrite(key: string, value: any) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // ❗不要 throw：quota 满了也不能把 UI 炸掉
+  }
+}
+
+function getDefaultImageForDay(ym: string, day: number) {
+  // 稳定映射：同一个 month/day 永远拿同一张默认图
+  // 这样你发给摄影师看不会“每次刷新乱跳”
+  const seed = `${ym}-${day}`;
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  return DEFAULT_IMAGES[hash % DEFAULT_IMAGES.length];
+}
+
+function useMonthState(ym: string) {
+  const key = `${LS_KEY_PREFIX}${ym}`;
+
+  const [cells, setCells] = useState<DayCell[]>(() =>
+    Array.from({ length: 31 }, (_, i) => ({ day: i + 1, image: null }))
+  );
 
   useEffect(() => {
-    const saved = localStorage.getItem(key);
-    if (saved) setCoverSrc(saved);
+    const saved = safeRead(key);
+    if (saved?.cells && Array.isArray(saved.cells)) {
+      // merge by day
+      const map = new Map<number, DayCell>();
+      for (const c of saved.cells) {
+        if (typeof c?.day === "number") map.set(c.day, { day: c.day, image: c.image ?? null });
+      }
+      setCells((prev) => prev.map((p) => map.get(p.day) ?? p));
+    }
   }, [key]);
 
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const blobUrl = URL.createObjectURL(file);
-    setCoverSrc(blobUrl);
-    localStorage.setItem(key, blobUrl);
+  useEffect(() => {
+    safeWrite(key, { cells });
+  }, [key, cells]);
+
+  const setDayImage = (day: number, image: string | null) => {
+    setCells((prev) => prev.map((c) => (c.day === day ? { ...c, image } : c)));
   };
 
-  return {
-    coverSrc,
-    fileInputRef,
-    pickCover: () => fileInputRef.current?.click(),
-    onFileChange,
-  };
+  return { cells, setDayImage };
 }
 
-/* ------------------ Header ------------------ */
-function Header({ ym, mode }: { ym: string; mode: CalendarModeId }) {
-  const [year, month] = ym.split("-");
+function ModePill({
+  label,
+  active,
+  onClick,
+}: {
+  label: Mode;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 24 }}>
-      <h1 style={{ margin: 0 }}>{`${year}-${month}`}</h1>
-      <div style={{ display: "flex", gap: 8 }}>
-        {(["poster", "film", "instant"] as const).map(m => (
-          <Link
-            key={m}
-            href={`/month/${ym}?mode=${m}`}
-            style={{
-              padding: "6px 14px",
-              borderRadius: 20,
-              textDecoration: "none",
-              border: "1px solid #ccc",
-              background: mode === m ? "#000" : "#fff",
-              color: mode === m ? "#fff" : "#000",
-              fontSize: 12
-            }}
-          >
-            {m}
-          </Link>
-        ))}
-        <button style={{ marginLeft: 8 }}>Export PDF</button>
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        borderRadius: 999,
+        padding: "8px 14px",
+        border: active ? "1px solid #111" : "1px solid rgba(0,0,0,0.18)",
+        background: active ? "#111" : "#fff",
+        color: active ? "#fff" : "#111",
+        cursor: "pointer",
+        fontSize: 13,
+        lineHeight: "13px",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function TopBar({
+  ym,
+  mode,
+  setMode,
+  onExport,
+}: {
+  ym: string;
+  mode: Mode;
+  setMode: (m: Mode) => void;
+  onExport: () => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 24,
+      }}
+    >
+      <div style={{ fontSize: 16, color: "#111" }}>{ym}</div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {/* ✅ 不要 Link，这里只 setState，避免 404 */}
+        <ModePill label="poster" active={mode === "poster"} onClick={() => setMode("poster")} />
+        <ModePill label="film" active={mode === "film"} onClick={() => setMode("film")} />
+        <ModePill label="instant" active={mode === "instant"} onClick={() => setMode("instant")} />
+
+        <button
+          type="button"
+          onClick={onExport}
+          style={{
+            marginLeft: 8,
+            border: "none",
+            background: "transparent",
+            fontSize: 14,
+            cursor: "pointer",
+            color: "#111",
+          }}
+        >
+          Export PDF
+        </button>
       </div>
     </div>
   );
 }
 
-/* ------------------ Poster (White Default) ------------------ */
-function PosterMode({ ym, cells }: any) {
+/** ------------------ Mode A: Poster (clean wall) ------------------ */
+function PosterMode({
+  ym,
+  cells,
+}: {
+  ym: string;
+  cells: DayCell[];
+}) {
   return (
-    <div style={{ background: "#f7f7f7", minHeight: "100vh", padding: 40 }}>
-      <Header ym={ym} mode="poster" />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 12 }}>
-        {cells.map((c: any, i: number) =>
-          c.type === "empty" ? <div key={i} /> : (
-            <Link
-              key={i}
-              href={`/month/${ym}/day/${c.day}?mode=poster`}
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(7, 1fr)",
+        gap: 12,
+      }}
+    >
+      {cells.map((c) => {
+        const src = c.image ?? getDefaultImageForDay(ym, c.day);
+        const href = `/month/${ym}/day/${c.day}?mode=poster`;
+
+        return (
+          <Link
+            key={c.day}
+            href={href}
+            style={{
+              position: "relative",
+              height: 92,
+              borderRadius: 14,
+              overflow: "hidden",
+              textDecoration: "none",
+              border: "1px solid rgba(0,0,0,0.08)",
+              background: "#fff",
+              boxShadow: "0 1px 0 rgba(0,0,0,0.04)",
+            }}
+          >
+            <div
               style={{
-                background: "#fff",
-                padding: 20,
-                textAlign: "center",
-                borderRadius: 8,
-                textDecoration: "none",
-                color: "#000"
+                position: "absolute",
+                inset: 0,
+                backgroundImage: `url(${src})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+                filter: "saturate(1.02) contrast(1.02)",
+                transform: "scale(1.02)",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                background: "linear-gradient(180deg, rgba(255,255,255,0.0) 30%, rgba(255,255,255,0.72) 100%)",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                left: 10,
+                bottom: 10,
+                color: "#111",
+                fontSize: 14,
+                fontWeight: 600,
               }}
             >
               {c.day}
-            </Link>
-          )
-        )}
-      </div>
+            </div>
+          </Link>
+        );
+      })}
     </div>
   );
 }
 
-/* ------------------ Film (Your Beautified Version) ------------------ */
-function FilmMode({ ym, year, monthIndex0, cells }: any) {
-  const { coverSrc, fileInputRef, pickCover, onFileChange } =
-    useMonthCover(ym, "film");
-
-  const monthName = new Date(year, monthIndex0, 1)
-    .toLocaleString("en-US", { month: "long" })
-    .toLowerCase();
+/** ------------------ Mode B: Film (your “improved film” direction) ------------------
+ * White wall + film strips (no dark grid)
+ */
+function FilmMode({ ym, cells }: { ym: string; cells: DayCell[] }) {
+  // split into rows of 7 like calendar
+  const rows = useMemo(() => {
+    const out: DayCell[][] = [];
+    for (let i = 0; i < cells.length; i += 7) out.push(cells.slice(i, i + 7));
+    return out;
+  }, [cells]);
 
   return (
-    <div style={{ background: "#0a0a0a", minHeight: "100vh", padding: 40 }}>
-      <Header ym={ym} mode="film" />
-      <div style={{ maxWidth: 700, margin: "0 auto", position: "relative" }}>
-        <div style={{ aspectRatio: "4/5", position: "relative" }}>
-          <Image src={coverSrc} alt="film" fill style={{ objectFit: "cover" }} />
-          <button
-            onClick={pickCover}
-            style={{ position: "absolute", top: 20, right: 20 }}
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {rows.map((row, idx) => (
+        <div
+          key={idx}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(7, 1fr)",
+            gap: 12,
+          }}
+        >
+          {row.map((c) => {
+            const src = c.image ?? getDefaultImageForDay(ym, c.day);
+            const href = `/month/${ym}/day/${c.day}?mode=film`;
+
+            return (
+              <Link
+                key={c.day}
+                href={href}
+                style={{
+                  textDecoration: "none",
+                  color: "#111",
+                }}
+              >
+                <div
+                  style={{
+                    borderRadius: 14,
+                    padding: 10,
+                    background: "#fff",
+                    border: "1px solid rgba(0,0,0,0.08)",
+                    boxShadow: "0 1px 0 rgba(0,0,0,0.04)",
+                  }}
+                >
+                  {/* film frame */}
+                  <div
+                    style={{
+                      borderRadius: 12,
+                      overflow: "hidden",
+                      border: "1px solid rgba(0,0,0,0.12)",
+                      background: "#f2f2f2",
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: 76,
+                        backgroundImage: `url(${src})`,
+                        backgroundSize: "cover",
+                        backgroundPosition: "center",
+                      }}
+                    />
+                  </div>
+
+                  {/* tiny film text line */}
+                  <div
+                    style={{
+                      marginTop: 8,
+                      display: "flex",
+                      justifyContent: "space-between",
+                      fontSize: 11,
+                      letterSpacing: 0.3,
+                      color: "rgba(0,0,0,0.62)",
+                    }}
+                  >
+                    <span>{ym}</span>
+                    <span>DAY {pad2(c.day)}</span>
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** ------------------ Mode C: Instant (polaroid wall) ------------------ */
+function InstantMode({ ym, cells }: { ym: string; cells: DayCell[] }) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(7, 1fr)",
+        gap: 12,
+      }}
+    >
+      {cells.map((c) => {
+        const src = c.image ?? getDefaultImageForDay(ym, c.day);
+        const href = `/month/${ym}/day/${c.day}?mode=instant`;
+
+        return (
+          <Link
+            key={c.day}
+            href={href}
+            style={{
+              textDecoration: "none",
+              color: "#111",
+            }}
           >
-            Replace Film
-          </button>
-          <input ref={fileInputRef} type="file" hidden onChange={onFileChange} />
-        </div>
-
-        <h2 style={{ color: "#fff", marginTop: 20 }}>{monthName} {year}</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", color: "#fff" }}>
-          {cells.map((c: any, i: number) =>
-            c.type === "empty" ? <div key={i} /> : <div key={i}>{c.day}</div>
-          )}
-        </div>
-      </div>
+            <div
+              style={{
+                background: "#fff",
+                borderRadius: 14,
+                padding: 10,
+                border: "1px solid rgba(0,0,0,0.08)",
+                boxShadow: "0 1px 0 rgba(0,0,0,0.04)",
+                transform: `rotate(${(c.day % 3) - 1}deg)`,
+                transformOrigin: "center",
+              }}
+            >
+              <div
+                style={{
+                  borderRadius: 10,
+                  overflow: "hidden",
+                  background: "#f2f2f2",
+                  border: "1px solid rgba(0,0,0,0.10)",
+                }}
+              >
+                <div
+                  style={{
+                    height: 74,
+                    backgroundImage: `url(${src})`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                  }}
+                />
+              </div>
+              <div
+                style={{
+                  paddingTop: 10,
+                  height: 26,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  fontSize: 12,
+                  color: "rgba(0,0,0,0.68)",
+                }}
+              >
+                <span>{c.day}</span>
+                <span style={{ fontSize: 11 }}>{ym}</span>
+              </div>
+            </div>
+          </Link>
+        );
+      })}
     </div>
   );
 }
 
-/* ------------------ Instant (Polaroid) ------------------ */
-function InstantMode({ ym, year, monthIndex0, cells }: any) {
-  const { coverSrc, fileInputRef, pickCover, onFileChange } =
-    useMonthCover(ym, "instant");
+export default function MonthClient() {
+  // ✅ 先用当前月份；如果你有 month 切换器，替换这里就行
+  const now = new Date();
+  const ym = useMemo(() => `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`, [now]);
 
-  const monthName = new Date(year, monthIndex0, 1).toLocaleString("en-US", {
-    month: "long",
-  });
+  const [mode, setMode] = useState<Mode>("poster");
+  const { cells } = useMonthState(ym);
+
+  // ✅ Export：先留空（你项目里如果已有 handler，把它接回去）
+  const onExport = () => {
+    // TODO: hook up your existing export code
+    // 先别让它报错影响 UI
+    alert("Export PDF: connect your export handler here.");
+  };
 
   return (
-    <div style={{ background: "#e8e8e8", minHeight: "100vh", padding: 40 }}>
-      <Header ym={ym} mode="instant" />
-      <div style={{ background: "#fff", padding: 20, maxWidth: 500, margin: "0 auto" }}>
-        <div style={{ aspectRatio: "1/1", position: "relative" }} onClick={pickCover}>
-          <Image src={coverSrc} alt="instant" fill style={{ objectFit: "cover" }} />
-        </div>
-        <input ref={fileInputRef} type="file" hidden onChange={onFileChange} />
-        <h2 style={{ textAlign: "center" }}>{monthName} {year}</h2>
-      </div>
-    </div>
+    <main
+      style={{
+        minHeight: "100vh",
+        padding: 40,
+        background: "#f7f7f7", // ✅ 默认白/浅灰展墙
+      }}
+    >
+      <TopBar ym={ym} mode={mode} setMode={setMode} onExport={onExport} />
+
+      {mode === "poster" && <PosterMode ym={ym} cells={cells} />}
+      {mode === "film" && <FilmMode ym={ym} cells={cells} />}
+      {mode === "instant" && <InstantMode ym={ym} cells={cells} />}
+    </main>
   );
-}
-
-/* ------------------ Main ------------------ */
-export default function MonthClient() {
-  const params = useParams();
-  const searchParams = useSearchParams();
-
-  const ym = (params.id as string) ?? "2026-01";
-  const mode = clampMode(searchParams.get("mode"));
-
-  const [year, monthIndex0] = ym.split("-").map(Number);
-  const { cells } = buildMonthGrid(year, monthIndex0 - 1);
-
-  if (mode === "film") return <FilmMode ym={ym} year={year} monthIndex0={monthIndex0 - 1} cells={cells} />;
-  if (mode === "instant") return <InstantMode ym={ym} year={year} monthIndex0={monthIndex0 - 1} cells={cells} />;
-  return <PosterMode ym={ym} cells={cells} />;
 }
