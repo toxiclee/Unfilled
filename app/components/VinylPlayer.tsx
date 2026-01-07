@@ -4,8 +4,28 @@ import { useState } from "react";
 
 export default function VinylPlayer() {
   const [isOpen, setIsOpen] = useState(false);
-
   const playlistId = "37i9dQZF1DX8S06m2mD583";
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [centerCover, setCenterCover] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem("vinyl:center") || null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (centerCover) localStorage.setItem("vinyl:center", centerCover);
+    } catch {}
+  }, [centerCover]);
+
+  const onCenterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    setCenterCover(url);
+  };
 
   return (
     <div style={{ position: "fixed", bottom: 40, right: 40, zIndex: 2000, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 12 }}>
@@ -21,16 +41,57 @@ export default function VinylPlayer() {
         />
       </div>
 
-      <button
+      <div
         onClick={() => setIsOpen((s) => !s)}
-        aria-label="Toggle music player"
-        style={{ width: 36, height: 36, borderRadius: 18, background: "#fff", border: "none", boxShadow: "0 6px 18px rgba(0,0,0,0.12)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+        style={{
+          width: 40,
+          height: 40,
+          position: "relative",
+          cursor: "pointer",
+          borderRadius: "50%",
+          overflow: "hidden",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+          border: "1px solid rgba(0,0,0,0.05)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
       >
-        <svg viewBox="0 0 24 24" width="20" height="20" style={{ display: "block" }}>
-          <circle cx="12" cy="12" r="10" stroke="#000" strokeWidth="0.8" fill="none" />
-          <circle cx="12" cy="12" r="4" fill="#000" />
-        </svg>
-      </button>
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "radial-gradient(circle, #333 0%, #000 100%)",
+            animation: isOpen ? "rotateVinyl 4s linear infinite" : "none",
+          }}
+        />
+
+        <div
+          style={{
+            position: "absolute",
+            inset: "9px",
+            borderRadius: "50%",
+            backgroundColor: "#eee",
+            backgroundImage: `url(${centerCover || "/defaults/01.jpg"})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            zIndex: 2,
+            animation: isOpen ? "rotateVinyl 4s linear infinite" : "none",
+          }}
+          onClick={(e) => {
+            // prevent toggling open when clicking the center to change cover
+            e.stopPropagation();
+            inputRef.current?.click();
+          }}
+          title="Change center cover"
+        />
+
+        <input ref={inputRef} type="file" accept="image/*" hidden onChange={onCenterChange} />
+
+        <style dangerouslySetInnerHTML={{ __html: `
+          @keyframes rotateVinyl { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        ` }} />
+      </div>
     </div>
   );
 }
