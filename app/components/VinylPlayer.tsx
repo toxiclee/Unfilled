@@ -1,14 +1,34 @@
-"use client";
+"use client"; // 必须在第一行
 
-import { useState } from "react";
+import React, { useState } from "react"; // import 必须在顶部
 
 export default function VinylPlayer() {
   const [isOpen, setIsOpen] = useState(false);
-  const playlistId = "37i9dQZF1DX8S06m2mD583";
+  const playlistId = "37i9dQZF1DX8S06m2mD583"; // 你喜欢的日系歌单 ID
 
   return (
-    <div style={{ position: "fixed", bottom: 40, right: 40, zIndex: 2000, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 12 }}>
-      <div style={{ width: 300, height: isOpen ? 80 : 0, opacity: isOpen ? 1 : 0, transition: "all 0.4s ease", overflow: "hidden", borderRadius: 8, boxShadow: "0 10px 30px rgba(0,0,0,0.1)" }}>
+    <div style={{
+      position: "fixed",
+      bottom: "40px",
+      right: "40px",
+      zIndex: 2000,
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "flex-end",
+      gap: "12px"
+    }}>
+      
+      {/* Spotify 播放器 */}
+      <div style={{
+        width: "300px",
+        height: isOpen ? "80px" : "0px",
+        opacity: isOpen ? 1 : 0,
+        transition: "all 0.5s cubic-bezier(0.4, 0, 0.2, 1)",
+        overflow: "hidden",
+        borderRadius: "8px",
+        boxShadow: "0 10px 30px rgba(0,0,0,0.1)",
+        filter: "grayscale(100%) contrast(90%)", // 素雅黑白处理
+      }}>
         <iframe
           src={`https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator&theme=0`}
           width="100%"
@@ -16,40 +36,45 @@ export default function VinylPlayer() {
           frameBorder="0"
           allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
           loading="lazy"
-          title="vinyl-player-spotify"
-        />
+        ></iframe>
       </div>
 
-      <div
-        onClick={() => setIsOpen((s) => !s)}
+      {/* 黑胶按钮 */}
+      <div 
+        onClick={() => setIsOpen(!isOpen)}
         style={{
-          width: 40,
-          height: 40,
-          position: "relative",
+          width: "28px",
+          height: "28px",
           cursor: "pointer",
-          borderRadius: "50%",
-          overflow: "hidden",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-          border: "1px solid rgba(0,0,0,0.05)",
+          position: "relative",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "radial-gradient(circle, #222 0%, #000 100%)",
         }}
-        title="Toggle music player"
       >
-        <svg viewBox="0 0 48 48" width="36" height="36" style={{ display: "block" }}>
-          <circle cx="24" cy="24" r="22" fill="none" stroke="#111" strokeWidth="0.6" />
-          {/* concentric groove rings */}
-          <g stroke="#0a0a0a" strokeWidth="0.6" opacity="0.6">
-            <circle cx="24" cy="24" r="18" />
-            <circle cx="24" cy="24" r="15" />
-            <circle cx="24" cy="24" r="12" />
-            <circle cx="24" cy="24" r="9" />
-            <circle cx="24" cy="24" r="6" />
-          </g>
-          <circle cx="24" cy="24" r="3" fill="#111" />
+        <svg 
+          viewBox="0 0 24 24" 
+          style={{
+            width: "100%",
+            height: "100%",
+            // 动画逻辑直接写在这里
+            animation: isOpen ? "rotateVinyl 4s linear infinite" : "none",
+            opacity: isOpen ? 1 : 0.3,
+            transition: "opacity 0.3s"
+          }}
+        >
+          <circle cx="12" cy="12" r="10" stroke="#000" strokeWidth="0.8" fill="none" />
+          <circle cx="12" cy="12" r="7" stroke="#000" strokeWidth="0.2" fill="none" />
+          <circle cx="12" cy="12" r="4" stroke="#000" strokeWidth="0.2" fill="none" />
+          <circle cx="12" cy="12" r="1.5" fill="#000" />
         </svg>
+
+        <style jsx global>{`
+          @keyframes rotateVinyl {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
       </div>
     </div>
   );

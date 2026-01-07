@@ -8,6 +8,75 @@ import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import { buildMonthGrid } from "../../../lib/calendar";
 
+/* ------------------ ElegantVinyl Component ------------------ */
+function ElegantVinyl({ isPlaying }: { isPlaying: boolean }) {
+  return (
+    <div 
+      style={{
+        width: "60px", 
+        height: "60px",
+        backgroundColor: "#fcfcfc",
+        border: "1px solid #eee",
+        borderRadius: "12px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        transition: "all 0.3s ease",
+        position: "relative",
+        boxShadow: isPlaying ? "0 4px 12px rgba(0,0,0,0.05)" : "none"
+      }}
+    >
+      <div style={{
+        width: "34px",
+        height: "34px",
+        borderRadius: "50%",
+        border: "1px solid #333",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        animation: isPlaying ? "softRotate 5s linear infinite" : "none",
+      }}>
+        <div style={{
+          width: "10px",
+          height: "10px",
+          borderRadius: "50%",
+          backgroundColor: "#333",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center"
+        }}>
+          <div style={{ width: "2px", height: "2px", backgroundColor: "#fff", borderRadius: "50%" }} />
+        </div>
+        <div style={{
+          position: "absolute",
+          width: "24px",
+          height: "24px",
+          borderRadius: "50%",
+          border: "0.5px solid rgba(0,0,0,0.1)"
+        }} />
+      </div>
+      {isPlaying && (
+        <div style={{
+          position: "absolute",
+          bottom: "6px",
+          fontSize: "8px",
+          color: "#aaa",
+          letterSpacing: "1px"
+        }}>
+          ♪ . . .
+        </div>
+      )}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes softRotate {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}} />
+    </div>
+  );
+}
+
 const ChevronLeft = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="1" strokeLinecap="square"/>
@@ -21,7 +90,7 @@ const ChevronRight = () => (
 );
 
 /* ------------------ Types & Utils ------------------ */
-type CalendarModeId = "poster" | "grid" | "film" | "instant";
+type CalendarModeId = "poster" | "grid" | "film" | "instant" | "japanese";
 
 // Show weekdays starting from Monday to match the provided design
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
@@ -30,7 +99,7 @@ const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 const DEFAULT_COVERS = ["/defaults/01.jpg", "/defaults/02.jpg", "/defaults/03.jpg", "/defaults/04.jpg"] as const;
 
 function clampMode(mode?: string | null): CalendarModeId {
-  if (mode === "grid" || mode === "film" || mode === "instant") return mode;
+  if (mode === "grid" || mode === "film" || mode === "instant" || mode === "japanese") return mode;
   return "poster";
 }
 
@@ -200,9 +269,9 @@ function PosterMode({ year, monthIndex0, ym, mode, cells }: any) {
     <div style={{ maxWidth: 1000, margin: "0 auto", padding: "40px 20px", color: "#000" }}>
       <Header year={year} monthIndex0={monthIndex0} ym={ym} mode={mode} />
 
-      <div ref={posterCardRef} style={{ borderRadius: 24, overflow: "hidden", border: "1px solid #eee", background: "#f9f9f9" }}>
-        <div style={{ position: "relative", height: 400, cursor: "pointer" }} onClick={pickCover}>
-          <Image src={coverSrc} alt="Month Cover" fill style={{ objectFit: "cover" }} priority />
+      <div ref={posterCardRef} style={{ borderRadius: 24, overflow: "hidden", border: "1px solid #eee", background: "#f9f9f9", display: "flex", flexDirection: "column", height: "80vh", maxHeight: 900 }}>
+        <div style={{ position: "relative", height: "50%", cursor: "pointer", flex: 1 }} onClick={pickCover}>
+          <img src={coverSrc} alt="Month Cover" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
           <div
             style={{
               position: "absolute",
@@ -250,7 +319,7 @@ function PosterMode({ year, monthIndex0, ym, mode, cells }: any) {
           <input ref={fileInputRef} type="file" hidden onChange={onFileChange} />
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", padding: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", padding: 20, flex: 1, overflowY: "auto" }}>
           {WEEKDAYS.map((d) => (
             <div key={d} style={{ textAlign: "center", fontSize: 12, opacity: 0.3, marginBottom: 10 }}>
               {d}
@@ -369,7 +438,7 @@ function GridMode({ year, monthIndex0, ym, mode, cells }: any) {
         </div>
       </div>
 
-      <div ref={gridRef} style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 10, marginTop: 40 }}>
+      <div ref={gridRef} style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 10, marginTop: 40, alignItems: "center", justifyItems: "center" }}>
         {cells.map((cell: any, i: number) =>
           cell.type === "empty" ? (
             <div key={i} />
@@ -378,18 +447,10 @@ function GridMode({ year, monthIndex0, ym, mode, cells }: any) {
               key={i}
               href={`/month/${ym}/day/${cell.day}?mode=${mode}`}
               style={{
-                aspectRatio: "1/1",
-                border: "1px solid #333",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
                 textDecoration: "none",
-                color: "#fff",
-                fontSize: 24,
-                fontWeight: 100,
               }}
             >
-              {cell.day}
+              <ElegantVinyl isPlaying={false} />
             </Link>
           )
         )}
@@ -688,5 +749,6 @@ export default function MonthClient({ monthId }: { monthId: string }) {
   if (mode === "grid") return <GridMode year={year} monthIndex0={monthIndex0} ym={monthId} mode={mode} cells={cells} />;
   if (mode === "film") return <FilmMode year={year} monthIndex0={monthIndex0} ym={monthId} mode={mode} cells={cells} />;
   if (mode === "instant") return <InstantMode year={year} monthIndex0={monthIndex0} ym={monthId} mode={mode} cells={cells} />;
+  if (mode === "japanese") return <JapaneseMode year={year} monthIndex0={monthIndex0} ym={monthId} mode={mode} cells={cells} />;
   return <PosterMode year={year} monthIndex0={monthIndex0} ym={monthId} mode={mode} cells={cells} />;
 }
