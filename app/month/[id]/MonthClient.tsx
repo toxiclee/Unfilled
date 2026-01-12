@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import { buildMonthGrid } from "../../../lib/calendar";
+import { MODE_CONCEPTUAL_LABELS, ORDERED_MODES } from "../../../lib/calendarModes";
 
 /* ------------------ ElegantVinyl Component ------------------ */
 function ElegantVinyl({ isPlaying }: { isPlaying: boolean }) {
@@ -164,6 +165,469 @@ function useMonthCover(ym: string) {
   };
 }
 
+/* ------------------ Mode Intro Overlay ------------------ */
+function ModeIntroOverlay({ onClose }: { onClose: () => void }) {
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    const handleClickOutside = (e: MouseEvent) => {
+      if (overlayRef.current && !overlayRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+
+    document.addEventListener("keydown", handleEscape);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.3)",
+        backdropFilter: "blur(4px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+        animation: "fadeIn 300ms ease-out",
+      }}
+    >
+      <div
+        ref={overlayRef}
+        style={{
+          background: "#fff",
+          borderRadius: 16,
+          padding: "32px 40px",
+          maxWidth: 420,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+          position: "relative",
+          animation: "slideUp 300ms ease-out",
+        }}
+      >
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          style={{
+            position: "absolute",
+            top: 12,
+            right: 12,
+            background: "transparent",
+            border: "none",
+            fontSize: 20,
+            color: "rgba(0,0,0,0.4)",
+            cursor: "pointer",
+            width: 28,
+            height: 28,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transition: "color 0.2s",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = "rgba(0,0,0,0.7)")}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(0,0,0,0.4)")}
+        >
+          ×
+        </button>
+
+        {/* Title */}
+        <h3
+          style={{
+            margin: "0 0 16px 0",
+            fontSize: 14,
+            fontWeight: 300,
+            letterSpacing: "0.08em",
+            color: "rgba(0,0,0,0.6)",
+            fontVariant: "small-caps",
+          }}
+        >
+          Not Yet · Still · Warm · Quiet · Lingering
+        </h3>
+
+        {/* Body */}
+        <p
+          style={{
+            margin: "0 0 24px 0",
+            fontSize: 16,
+            lineHeight: 1.6,
+            color: "rgba(0,0,0,0.75)",
+            fontWeight: 300,
+          }}
+        >
+          These aren't views.
+          <br />
+          They're ways of sensing time.
+          <br />
+          Move freely between them.
+        </p>
+
+        {/* CTA */}
+        <button
+          onClick={onClose}
+          style={{
+            background: "#000",
+            color: "#fff",
+            border: "none",
+            padding: "8px 24px",
+            borderRadius: 20,
+            cursor: "pointer",
+            fontSize: 13,
+            letterSpacing: 0.5,
+            transition: "opacity 0.2s",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+        >
+          Okay
+        </button>
+      </div>
+
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+          @keyframes slideUp {
+            from { 
+              opacity: 0;
+              transform: translateY(20px);
+            }
+            to { 
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+        `
+      }} />
+    </div>
+  );
+}
+
+/* ------------------ Gesture Sketch Component ------------------ */
+function GestureSketch({ mode }: { mode: CalendarModeId }) {
+  const [isVisible, setIsVisible] = useState(false);
+  const [animationKey, setAnimationKey] = useState(0);
+  const pathRefs = useRef<(SVGPathElement | null)[]>([]);
+
+  // Abstract gesture sketches per mode - minimal linework only
+  const sketches: Record<CalendarModeId, { paths: string[]; strokeWidth?: number }> = {
+    poster: {
+      // Not Yet: open arc, incomplete gesture
+      paths: ["M4,20 Q12,8 20,16"],
+    },
+    grid: {
+      // Still: minimal, stable lines
+      paths: ["M8,8 L24,8", "M8,16 L24,16"],
+    },
+    film: {
+      // Warm: slightly denser/thicker, flowing
+      paths: ["M6,12 Q10,6 14,12 Q18,18 22,12", "M8,20 Q16,16 24,20"],
+      strokeWidth: 1.2,
+    },
+    instant: {
+      // Quiet: sparse, light presence
+      paths: ["M16,6 L16,26"],
+    },
+    japanese: {
+      // Lingering: longer trailing stroke
+      paths: ["M4,16 Q8,10 12,14 Q16,18 20,14 Q24,10 28,14"],
+    },
+  };
+
+  const currentSketch = sketches[mode];
+  const isDarkMode = mode === "grid" || mode === "film";
+  const strokeColor = isDarkMode ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)";
+
+  useEffect(() => {
+    // Reset and trigger animation on mode change
+    setIsVisible(false);
+    setAnimationKey((prev) => prev + 1);
+
+    const delayTimer = setTimeout(() => {
+      setIsVisible(true);
+    }, 300);
+
+    return () => clearTimeout(delayTimer);
+  }, [mode]);
+
+  useEffect(() => {
+    if (!isVisible) return;
+
+    // Calculate path lengths and set up stroke-dash animation
+    pathRefs.current.forEach((pathEl) => {
+      if (!pathEl) return;
+      const length = pathEl.getTotalLength();
+      pathEl.style.strokeDasharray = `${length}`;
+      pathEl.style.strokeDashoffset = `${length}`;
+      
+      // Trigger animation
+      requestAnimationFrame(() => {
+        pathEl.style.transition = "stroke-dashoffset 900ms cubic-bezier(0.4, 0, 0.2, 1)";
+        pathEl.style.strokeDashoffset = "0";
+      });
+    });
+  }, [isVisible, animationKey]);
+
+  return (
+    <svg
+      key={animationKey}
+      width="32"
+      height="32"
+      viewBox="0 0 32 32"
+      style={{
+        opacity: isVisible ? 1 : 0,
+        transition: "opacity 400ms ease-out",
+        flexShrink: 0,
+      }}
+    >
+      {currentSketch.paths.map((pathData, index) => (
+        <path
+          key={index}
+          ref={(el) => {
+            pathRefs.current[index] = el;
+          }}
+          d={pathData}
+          stroke={strokeColor}
+          strokeWidth={currentSketch.strokeWidth || 1}
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ))}
+    </svg>
+  );
+}
+
+/* ------------------ Temporal Mode Indicator ------------------ */
+function ModeIndicator({ currentMode, ym }: { currentMode: CalendarModeId; ym: string }) {
+  const [showInfo, setShowInfo] = useState(false);
+
+  // Adapt colors for dark modes
+  const isDarkMode = currentMode === "grid" || currentMode === "film";
+  const activeColor = isDarkMode ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.75)";
+  const inactiveColor = isDarkMode ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.32)";
+
+  return (
+    <>
+      {showInfo && <ModeIntroOverlay onClose={() => setShowInfo(false)} />}
+      <div
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: 13,
+            letterSpacing: "0.08em",
+            fontWeight: 300,
+            fontVariant: "small-caps",
+          }}
+        >
+          {ORDERED_MODES.map((mode, index) => (
+            <React.Fragment key={mode}>
+              <Link
+                href={`/month/${ym}?mode=${mode}`}
+                style={{
+                  textDecoration: "none",
+                  color: currentMode === mode ? activeColor : inactiveColor,
+                  fontWeight: currentMode === mode ? 400 : 300,
+                  cursor: "pointer",
+                  transition: "color 300ms ease, opacity 200ms ease",
+                }}
+                onMouseEnter={(e) => {
+                  if (currentMode !== mode) {
+                    e.currentTarget.style.opacity = "0.65";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.opacity = "1";
+                }}
+              >
+                {MODE_CONCEPTUAL_LABELS[mode]}
+              </Link>
+              {index < ORDERED_MODES.length - 1 && (
+                <span style={{ color: inactiveColor, opacity: 0.4, userSelect: "none" }}>·</span>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+        
+        <GestureSketch mode={currentMode} />
+
+        {/* Info icon */}
+        <button
+          onClick={() => setShowInfo(true)}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: isDarkMode ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.25)",
+            cursor: "pointer",
+            fontSize: 11,
+            width: 18,
+            height: 18,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: "50%",
+            transition: "color 0.2s, background 0.2s",
+            fontFamily: "serif",
+            fontStyle: "italic",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = isDarkMode ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.5)";
+            e.currentTarget.style.background = isDarkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = isDarkMode ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.25)";
+            e.currentTarget.style.background = "transparent";
+          }}
+          title="About these modes"
+        >
+          i
+        </button>
+      </div>
+    </>
+  );
+}
+
+/* ------------------ Mode-Specific Wrapper: Applies Temporal Atmosphere ------------------ */
+function ModeWrapper({ 
+  mode, 
+  children 
+}: { 
+  mode: CalendarModeId; 
+  children: React.ReactNode;
+}) {
+  // Subtle transition durations reflecting each mode's temporal character
+  const transitions: Record<CalendarModeId, string> = {
+    poster: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)", // open, responsive
+    grid: "all 0.25s ease-in-out", // stable, direct
+    film: "all 0.45s cubic-bezier(0.25, 0.1, 0.25, 1)", // softer, flowing
+    instant: "all 0.3s ease-out", // quick settle, calm
+    japanese: "all 0.6s cubic-bezier(0.33, 1, 0.68, 1)", // generous, lingering
+  };
+
+  return (
+    <div
+      style={{
+        transition: transitions[mode],
+        animation: `modeAppear 0.6s ${mode === "japanese" ? "cubic-bezier(0.33, 1, 0.68, 1)" : "ease-out"}`,
+      }}
+    >
+      {children}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          @keyframes modeAppear {
+            from { 
+              opacity: 0;
+              transform: translateY(8px);
+            }
+            to { 
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+        `
+      }} />
+    </div>
+  );
+}
+
+/* ------------------ Shared Export Buttons ------------------ */
+function ExportButtons({ 
+  onExport, 
+  mode,
+  containerRef 
+}: { 
+  onExport: (device: "desktop" | "phone") => void;
+  mode: CalendarModeId;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  const isDarkMode = mode === "grid" || mode === "film";
+  
+  return (
+    <div
+      style={{
+        position: "fixed",
+        bottom: 32,
+        right: 32,
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+        zIndex: 100,
+      }}
+    >
+      <button
+        onClick={() => onExport("desktop")}
+        style={{
+          background: isDarkMode ? "#2a2a2a" : "#fff",
+          color: isDarkMode ? "#ddd" : "#666",
+          border: `1px solid ${isDarkMode ? "#444" : "#ddd"}`,
+          padding: "12px 20px",
+          borderRadius: 8,
+          cursor: "pointer",
+          fontSize: 11,
+          letterSpacing: 1,
+          textTransform: "uppercase",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+          transition: "all 0.2s ease",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = "translateY(-2px)";
+          e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.25)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+        }}
+      >
+        Desktop
+      </button>
+      <button
+        onClick={() => onExport("phone")}
+        style={{
+          background: isDarkMode ? "#444" : "#333",
+          color: "#fff",
+          border: `1px solid ${isDarkMode ? "#555" : "#333"}`,
+          padding: "12px 20px",
+          borderRadius: 8,
+          cursor: "pointer",
+          fontSize: 11,
+          letterSpacing: 1,
+          textTransform: "uppercase",
+          fontWeight: 600,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+          transition: "all 0.2s ease",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = "translateY(-2px)";
+          e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.3)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.2)";
+        }}
+      >
+        Phone
+      </button>
+    </div>
+  );
+}
+
 /* ------------------ Shared Component: Header ------------------ */
 function Header({
   year,
@@ -180,16 +644,9 @@ function Header({
   const prev = addMonths(year, monthIndex0, -1);
   const next = addMonths(year, monthIndex0, 1);
 
-  const btnStyle = (active: boolean): React.CSSProperties => ({
-    fontSize: 12,
-    textDecoration: "none",
-    padding: "6px 14px",
-    borderRadius: 20,
-    border: "1px solid rgba(128,128,128,0.2)",
-    background: active ? "#000" : "transparent",
-    color: active ? "#fff" : "inherit",
-    transition: "0.2s",
-  });
+  // Adapt color for dark modes
+  const isDarkMode = mode === "grid" || mode === "film";
+  const textColor = isDarkMode ? "#fff" : "inherit";
 
   return (
     <header
@@ -199,6 +656,7 @@ function Header({
         alignItems: "flex-end",
         gap: 16,
         marginBottom: 20,
+        color: textColor,
       }}
     >
       <div>
@@ -216,7 +674,7 @@ function Header({
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              color: "inherit",
+              color: textColor,
               textDecoration: "none",
               transition: "opacity 0.2s",
             }}
@@ -233,7 +691,7 @@ function Header({
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              color: "inherit",
+              color: textColor,
               textDecoration: "none",
               transition: "opacity 0.2s",
             }}
@@ -244,11 +702,7 @@ function Header({
           </Link>
         </div>
 
-        {(["poster", "grid", "film", "instant", "japanese"] as const).map((m) => (
-          <Link key={m} href={`/month/${ym}?mode=${m}`} style={btnStyle(mode === m)}>
-            {m.toUpperCase()}
-          </Link>
-        ))}
+        <ModeIndicator currentMode={mode} ym={ym} />
       </div>
     </header>
   );
@@ -289,7 +743,8 @@ function PosterMode({ year, monthIndex0, ym, mode, cells }: any) {
   };
 
   return (
-    <div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 20px", color: "#000" }}>
+    <div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 20px", color: "#000", position: "relative" }}>
+      <ExportButtons onExport={exportPosterPDF} mode={mode} containerRef={posterCardRef} />
       <Header year={year} monthIndex0={monthIndex0} ym={ym} mode={mode} />
 
       {/* ✅ 一张图：严格 50% / 50%，不滚动 */}
@@ -477,39 +932,9 @@ function GridMode({ year, monthIndex0, ym, mode, cells }: any) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#000", color: "#fff", padding: 40 }}>
+    <div style={{ minHeight: "100vh", background: "#000", color: "#fff", padding: 40, position: "relative" }}>
+      <ExportButtons onExport={exportGridPDF} mode={mode} containerRef={gridRef} />
       <Header year={year} monthIndex0={monthIndex0} ym={ym} mode={mode} />
-
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12, gap: 8 }}>
-        <button
-          onClick={() => exportGridPDF("desktop")}
-          style={{
-            background: "transparent",
-            color: "#fff",
-            border: "1px solid rgba(255,255,255,0.08)",
-            padding: "6px 10px",
-            borderRadius: 16,
-            cursor: "pointer",
-            fontSize: 12,
-          }}
-        >
-          Export PDF (Desktop)
-        </button>
-        <button
-          onClick={() => exportGridPDF("phone")}
-          style={{
-            background: "transparent",
-            color: "#fff",
-            border: "1px solid rgba(255,255,255,0.04)",
-            padding: "6px 10px",
-            borderRadius: 16,
-            cursor: "pointer",
-            fontSize: 12,
-          }}
-        >
-          Export PDF (Phone)
-        </button>
-      </div>
 
       {/* ✅ 数字网格 */}
       <div
@@ -575,6 +1000,7 @@ function GridMode({ year, monthIndex0, ym, mode, cells }: any) {
 /* ------------------ Mode C: Film Mode (PURE IMAGE BG + CLEAR WHITE TYPE) ------------------ */
 function FilmMode({ year, monthIndex0, ym, mode, cells }: any) {
   const { coverSrc, fileInputRef, pickCover, onFileChange } = useMonthCover(ym);
+  const filmRef = useRef<HTMLDivElement | null>(null);
   const monthName = new Date(year, monthIndex0, 1)
     .toLocaleString("en-US", { month: "long" })
     .toLowerCase();
@@ -582,8 +1008,38 @@ function FilmMode({ year, monthIndex0, ym, mode, cells }: any) {
   // ✅ 关键：白字 + 强阴影（不算遮罩/玻璃）
   const textShadow = "0 2px 24px rgba(0,0,0,0.95)";
 
+  const exportFilmPDF = async (device: "desktop" | "phone" = "desktop") => {
+    try {
+      await (document as any).fonts?.ready;
+      const node = filmRef.current;
+      if (!node) return alert("Nothing to export");
+
+      const deviceSizes = {
+        desktop: { w: 1920, h: 1080 },
+        phone: { w: 1080, h: 1920 },
+      } as const;
+      const target = deviceSizes[device];
+
+      const scale = Math.max(1, target.w / Math.max(1, node.clientWidth));
+      const canvas = await html2canvas(node as HTMLElement, { useCORS: true, scale });
+      const imgData = canvas.toDataURL("image/png");
+
+      const pdf = new jsPDF({
+        unit: "px",
+        format: [target.w, target.h],
+        orientation: target.w >= target.h ? "landscape" : "portrait",
+      });
+      pdf.addImage(imgData, "PNG", 0, 0, target.w, target.h);
+      pdf.save(`${ym}-film-${device}.pdf`);
+    } catch (err) {
+      console.error(err);
+      alert("Export failed — possible CORS issue with images. Try uploading a cover image or use the desktop browser.");
+    }
+  };
+
   return (
     <div
+      ref={filmRef}
       style={{
         minHeight: "100vh",
         backgroundImage: `url(${coverSrc})`,
@@ -594,6 +1050,7 @@ function FilmMode({ year, monthIndex0, ym, mode, cells }: any) {
         color: "#fff",
       }}
     >
+      <ExportButtons onExport={exportFilmPDF} mode={mode} containerRef={filmRef} />
       {/* 顶部 Header：直接叠在图上，靠 textShadow 保证可读 */}
       <div style={{ position: "relative", padding: 24, color: "#fff", textShadow }}>
         <div style={{ maxWidth: 1400, margin: "0 auto" }}>
@@ -763,10 +1220,41 @@ function FilmMode({ year, monthIndex0, ym, mode, cells }: any) {
 /* ------------------ Mode D: Instant Mode (Polaroid Style) ------------------ */
 function InstantMode({ year, monthIndex0, ym, mode, cells }: any) {
   const { coverSrc, fileInputRef, pickCover, onFileChange } = useMonthCover(ym);
+  const instantRef = useRef<HTMLDivElement | null>(null);
   const monthName = new Date(year, monthIndex0, 1).toLocaleString("en-US", { month: "long" });
+
+  const exportInstantPDF = async (device: "desktop" | "phone" = "desktop") => {
+    try {
+      await (document as any).fonts?.ready;
+      const node = instantRef.current;
+      if (!node) return alert("Nothing to export");
+
+      const deviceSizes = {
+        desktop: { w: 1920, h: 1080 },
+        phone: { w: 1080, h: 1920 },
+      } as const;
+      const target = deviceSizes[device];
+
+      const scale = Math.max(1, target.w / Math.max(1, node.clientWidth));
+      const canvas = await html2canvas(node as HTMLElement, { useCORS: true, scale });
+      const imgData = canvas.toDataURL("image/png");
+
+      const pdf = new jsPDF({
+        unit: "px",
+        format: [target.w, target.h],
+        orientation: target.w >= target.h ? "landscape" : "portrait",
+      });
+      pdf.addImage(imgData, "PNG", 0, 0, target.w, target.h);
+      pdf.save(`${ym}-instant-${device}.pdf`);
+    } catch (err) {
+      console.error(err);
+      alert("Export failed — possible CORS issue with images. Try the desktop browser.");
+    }
+  };
 
   return (
     <div
+      ref={instantRef}
       style={{
         minHeight: "100vh",
         background: "#e8e8e8",
@@ -774,8 +1262,10 @@ function InstantMode({ year, monthIndex0, ym, mode, cells }: any) {
         flexDirection: "column",
         alignItems: "center",
         padding: "60px 20px",
+        position: "relative",
       }}
     >
+      <ExportButtons onExport={exportInstantPDF} mode={mode} containerRef={instantRef} />
       <div style={{ marginBottom: 40, width: "100%", maxWidth: 800 }}>
         <Header year={year} monthIndex0={monthIndex0} ym={ym} mode={mode} />
       </div>
@@ -881,10 +1371,41 @@ function InstantMode({ year, monthIndex0, ym, mode, cells }: any) {
 /* ------------------ Mode E: Japanese Mode (Washi + Grain) ------------------ */
 function JapaneseMode({ year, monthIndex0, ym, mode, cells }: any) {
   const { coverSrc, fileInputRef, pickCover, onFileChange } = useMonthCover(ym);
+  const japaneseRef = useRef<HTMLDivElement | null>(null);
   const monthName = new Date(year, monthIndex0, 1).toLocaleString("en-US", { month: "long" });
+
+  const exportJapanesePDF = async (device: "desktop" | "phone" = "desktop") => {
+    try {
+      await (document as any).fonts?.ready;
+      const node = japaneseRef.current;
+      if (!node) return alert("Nothing to export");
+
+      const deviceSizes = {
+        desktop: { w: 1920, h: 1080 },
+        phone: { w: 1080, h: 1920 },
+      } as const;
+      const target = deviceSizes[device];
+
+      const scale = Math.max(1, target.w / Math.max(1, node.clientWidth));
+      const canvas = await html2canvas(node as HTMLElement, { useCORS: true, scale });
+      const imgData = canvas.toDataURL("image/png");
+
+      const pdf = new jsPDF({
+        unit: "px",
+        format: [target.w, target.h],
+        orientation: target.w >= target.h ? "landscape" : "portrait",
+      });
+      pdf.addImage(imgData, "PNG", 0, 0, target.w, target.h);
+      pdf.save(`${ym}-japanese-${device}.pdf`);
+    } catch (err) {
+      console.error(err);
+      alert("Export failed — possible CORS issue with images. Try the desktop browser.");
+    }
+  };
 
   return (
     <div
+      ref={japaneseRef}
       style={{
         minHeight: "100vh",
         // ✅ 和纸底：很淡的纸纹 + 温暖底色
@@ -897,8 +1418,10 @@ function JapaneseMode({ year, monthIndex0, ym, mode, cells }: any) {
         `,
         color: "#1c1c1c",
         padding: "40px 20px",
+        position: "relative",
       }}
     >
+      <ExportButtons onExport={exportJapanesePDF} mode={mode} containerRef={japaneseRef} />
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
         <Header year={year} monthIndex0={monthIndex0} ym={ym} mode={mode} />
 
@@ -1072,6 +1595,7 @@ function JapaneseMode({ year, monthIndex0, ym, mode, cells }: any) {
 export default function MonthClient({ monthId }: { monthId: string }) {
   const searchParams = useSearchParams();
   const mode = clampMode(searchParams.get("mode"));
+  const [showIntro, setShowIntro] = useState(false);
 
   const { year, monthIndex0 } = useMemo(() => {
     const [y, m] = (monthId || "").split("-");
@@ -1083,9 +1607,44 @@ export default function MonthClient({ monthId }: { monthId: string }) {
 
   const { cells } = buildMonthGrid(year, monthIndex0);
 
-  if (mode === "grid") return <GridMode year={year} monthIndex0={monthIndex0} ym={monthId} mode={mode} cells={cells} />;
-  if (mode === "film") return <FilmMode year={year} monthIndex0={monthIndex0} ym={monthId} mode={mode} cells={cells} />;
-  if (mode === "instant") return <InstantMode year={year} monthIndex0={monthIndex0} ym={monthId} mode={mode} cells={cells} />;
-  if (mode === "japanese") return <JapaneseMode year={year} monthIndex0={monthIndex0} ym={monthId} mode={mode} cells={cells} />;
-  return <PosterMode year={year} monthIndex0={monthIndex0} ym={monthId} mode={mode} cells={cells} />;
+  // One-time intro overlay logic
+  useEffect(() => {
+    try {
+      const seen = localStorage.getItem("unfilled_mode_intro_seen");
+      if (!seen) {
+        // Small delay before showing to avoid jarring experience
+        const timer = setTimeout(() => {
+          setShowIntro(true);
+        }, 800);
+        return () => clearTimeout(timer);
+      }
+    } catch {
+      // localStorage not available
+    }
+  }, []);
+
+  const handleCloseIntro = () => {
+    setShowIntro(false);
+    try {
+      localStorage.setItem("unfilled_mode_intro_seen", "true");
+    } catch {
+      // localStorage not available
+    }
+  };
+
+  // Wrap each mode with temporal transitions
+  const renderMode = () => {
+    if (mode === "grid") return <GridMode year={year} monthIndex0={monthIndex0} ym={monthId} mode={mode} cells={cells} />;
+    if (mode === "film") return <FilmMode year={year} monthIndex0={monthIndex0} ym={monthId} mode={mode} cells={cells} />;
+    if (mode === "instant") return <InstantMode year={year} monthIndex0={monthIndex0} ym={monthId} mode={mode} cells={cells} />;
+    if (mode === "japanese") return <JapaneseMode year={year} monthIndex0={monthIndex0} ym={monthId} mode={mode} cells={cells} />;
+    return <PosterMode year={year} monthIndex0={monthIndex0} ym={monthId} mode={mode} cells={cells} />;
+  };
+
+  return (
+    <>
+      {showIntro && <ModeIntroOverlay onClose={handleCloseIntro} />}
+      <ModeWrapper mode={mode}>{renderMode()}</ModeWrapper>
+    </>
+  );
 }

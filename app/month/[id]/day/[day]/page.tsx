@@ -4,14 +4,15 @@ import DayClient from "./DayClient";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default function DayPage({
-  params,
-}: {
-  params: { id: string; day: string };
+export default async function DayPage(props: {
+  params: Promise<{ id: string; day: string }>;
 }) {
+  const params = await props.params;
+  const { id, day } = params;
+  
   return (
     <Suspense fallback={null}>
-      <DayClient monthId={params.id} day={params.day} />
+      <DayClient monthId={id} day={day} />
     </Suspense>
   );
 }

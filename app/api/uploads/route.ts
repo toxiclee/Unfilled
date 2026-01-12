@@ -1,4 +1,3 @@
-console.log("BLOB TOKEN EXISTS:", !!process.env.BLOB_READ_WRITE_TOKEN);
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { NextResponse } from "next/server";
 
