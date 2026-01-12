@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import VinylPlayer from "./components/VinylPlayer";
 import TopLevelModeSwitch from "./components/TopLevelModeSwitch";
 import StorageDebugger from "./components/StorageDebugger";
 
@@ -34,7 +33,6 @@ export default function RootLayout({
         <TopLevelModeSwitch />
         
         {children}
-        <VinylPlayer />
       </body>
     </html>
   );

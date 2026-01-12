@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
-import Link from "next/link";
 import { listPostsWithAssets, uploadImage, deletePost, deleteAsset } from "../../lib/gallery/db";
 import type { PostWithAsset } from "../../lib/gallery/types";
+import { getOrCreateDefaultGalleryShare, updateGalleryShareSlug, buildGalleryShareUrl, type GalleryShare } from "../../lib/gallery/galleryShareUtils";
+import { validateSlug } from "../../lib/gallery/gallerySlugGenerator";
+import { isSupabaseConfigured } from "../../lib/supabase/client";
 
 export default function GalleryPage() {
   const [posts, setPosts] = useState<PostWithAsset[]>([]);
@@ -12,6 +14,11 @@ export default function GalleryPage() {
   const [dragActive, setDragActive] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [galleryShare, setGalleryShare] = useState<GalleryShare | null>(null);
+  const [loadingShare, setLoadingShare] = useState(false);
+  const [editingSlug, setEditingSlug] = useState(false);
+  const [newSlug, setNewSlug] = useState("");
+  const [slugError, setSlugError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const objectURLs = useRef<string[]>([]);
 
@@ -86,7 +93,8 @@ export default function GalleryPage() {
   }
 
   function handleCopyGalleryLink() {
-    const url = `${window.location.origin}/gallery`;
+    if (!galleryShare) return;
+    const url = buildGalleryShareUrl(galleryShare.slug, window.location.origin);
     navigator.clipboard.writeText(url).then(() => {
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
@@ -94,7 +102,60 @@ export default function GalleryPage() {
   }
 
   function handleOpenGalleryPreview() {
-    window.open('/preview/gallery', '_blank');
+    if (!galleryShare) return;
+    const url = buildGalleryShareUrl(galleryShare.slug, window.location.origin);
+    window.open(url, '_blank');
+  }
+
+  async function loadGalleryShare() {
+    if (!isSupabaseConfigured()) return;
+    
+    setLoadingShare(true);
+    try {
+      const share = await getOrCreateDefaultGalleryShare();
+      setGalleryShare(share);
+      if (share) {
+        setNewSlug(share.slug);
+      }
+    } catch (err) {
+      console.error("Failed to load gallery share:", err);
+    } finally {
+      setLoadingShare(false);
+    }
+  }
+
+  async function handleSaveSlug() {
+    if (!galleryShare || !newSlug.trim()) return;
+
+    // Validate
+    const validation = validateSlug(newSlug.trim());
+    if (!validation.valid) {
+      setSlugError(validation.error || "Invalid slug");
+      return;
+    }
+
+    setLoadingShare(true);
+    setSlugError("");
+    
+    try {
+      const result = await updateGalleryShareSlug(galleryShare.id, newSlug.trim());
+      if (result.success && result.share) {
+        setGalleryShare(result.share);
+        setEditingSlug(false);
+      } else {
+        setSlugError(result.error || "Failed to update slug");
+      }
+    } catch (err) {
+      console.error("Failed to update slug:", err);
+      setSlugError("An error occurred");
+    } finally {
+      setLoadingShare(false);
+    }
+  }
+
+  function handleExportClick() {
+    setShowExportModal(true);
+    loadGalleryShare();
   }
 
   async function handleDelete(postId: string, assetId: string, e: React.MouseEvent) {
@@ -131,7 +192,7 @@ export default function GalleryPage() {
           alignItems: "center",
         }}
       >
-        <Link
+        <a
           href="/"
           style={{
             fontSize: 11,
@@ -141,7 +202,7 @@ export default function GalleryPage() {
           }}
         >
           ← HOME
-        </Link>
+        </a>
         <h1
           style={{
             fontSize: 14,
@@ -155,7 +216,7 @@ export default function GalleryPage() {
           Gallery
         </h1>
         <button
-          onClick={() => setShowExportModal(true)}
+          onClick={handleExportClick}
           style={{
             fontSize: 11,
             letterSpacing: 1,
@@ -276,52 +337,44 @@ export default function GalleryPage() {
                   position: "relative",
                 }}
               >
-                <Link
-                  href={`/p/${post.id}`}
+                <div
                   style={{
-                    textDecoration: "none",
-                    display: "block",
+                    aspectRatio: "1/1",
+                    backgroundColor: "#f0f0f0",
+                    borderRadius: 4,
+                    overflow: "hidden",
+                    cursor: "pointer",
+                    transition: "transform 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "scale(0.98)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "scale(1)";
                   }}
                 >
-                  <div
+                  <img
+                    src={getObjectURL(post.asset.blob)}
+                    alt={post.caption || "Gallery image"}
                     style={{
-                      aspectRatio: "1/1",
-                      backgroundColor: "#f0f0f0",
-                      borderRadius: 4,
-                      overflow: "hidden",
-                      cursor: "pointer",
-                      transition: "transform 0.2s ease",
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
                     }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = "scale(0.98)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = "scale(1)";
+                  />
+                </div>
+                {post.caption && (
+                  <p
+                    style={{
+                      fontSize: 12,
+                      color: "#666",
+                      marginTop: 8,
+                      lineHeight: 1.4,
                     }}
                   >
-                    <img
-                      src={getObjectURL(post.asset.blob)}
-                      alt={post.caption || "Gallery image"}
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                      }}
-                    />
-                  </div>
-                  {post.caption && (
-                    <p
-                      style={{
-                        fontSize: 12,
-                        color: "#666",
-                        marginTop: 8,
-                        lineHeight: 1.4,
-                      }}
-                    >
-                      {post.caption}
-                    </p>
-                  )}
-                </Link>
+                    {post.caption}
+                  </p>
+                )}
                 <button
                   onClick={(e) => handleDelete(post.id, post.assetId, e)}
                   style={{
@@ -421,55 +474,200 @@ export default function GalleryPage() {
                 color: "#333",
               }}
             >
-              Export Gallery
+              Share Gallery
             </h3>
 
-            <p
-              style={{
-                fontSize: 13,
-                lineHeight: 1.6,
-                color: "#666",
-                margin: "0 0 24px 0",
-              }}
-            >
-              Share your entire gallery ({posts.length} {posts.length === 1 ? 'image' : 'images'}).
-              <br />
-              Public links will be available later.
-            </p>
+            {!isSupabaseConfigured() ? (
+              <div>
+                <p
+                  style={{
+                    fontSize: 13,
+                    lineHeight: 1.6,
+                    color: "#666",
+                    margin: "0 0 16px 0",
+                  }}
+                >
+                  Gallery sharing is not configured yet.
+                </p>
+                <p
+                  style={{
+                    fontSize: 12,
+                    lineHeight: 1.6,
+                    color: "#999",
+                    margin: 0,
+                  }}
+                >
+                  Configure Supabase environment variables to enable sharing.
+                </p>
+              </div>
+            ) : loadingShare ? (
+              <p style={{ fontSize: 13, color: "#666", textAlign: "center" }}>
+                Loading...
+              </p>
+            ) : !galleryShare ? (
+              <p style={{ fontSize: 13, color: "#999", textAlign: "center" }}>
+                Failed to load gallery share link.
+              </p>
+            ) : (
+              <div>
+                <p
+                  style={{
+                    fontSize: 13,
+                    lineHeight: 1.6,
+                    color: "#666",
+                    margin: "0 0 24px 0",
+                  }}
+                >
+                  Share your entire gallery ({posts.length} {posts.length === 1 ? 'image' : 'images'}) with a beautiful link.
+                </p>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <button
-                onClick={handleCopyGalleryLink}
-                style={{
-                  padding: "12px 20px",
-                  fontSize: 12,
-                  letterSpacing: 0.5,
-                  border: "1px solid #ddd",
-                  borderRadius: 4,
-                  background: copySuccess ? "#4a4" : "#fff",
-                  color: copySuccess ? "#fff" : "#333",
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
-                }}
-              >
-                {copySuccess ? "Copied!" : "Copy Gallery Link"}
-              </button>
-              <button
-                onClick={handleOpenGalleryPreview}
-                style={{
-                  padding: "12px 20px",
-                  fontSize: 12,
-                  letterSpacing: 0.5,
-                  border: "1px solid #333",
-                  borderRadius: 4,
-                  background: "#333",
-                  color: "#fff",
-                  cursor: "pointer",
-                }}
-              >
-                Open Gallery
-              </button>
-            </div>
+                {/* Share URL display */}
+                <div
+                  style={{
+                    padding: "12px 16px",
+                    backgroundColor: "#f5f5f5",
+                    borderRadius: 4,
+                    marginBottom: 16,
+                    fontSize: 12,
+                    fontFamily: "monospace",
+                    color: "#666",
+                    wordBreak: "break-all",
+                  }}
+                >
+                  {buildGalleryShareUrl(galleryShare.slug, typeof window !== 'undefined' ? window.location.origin : '')}
+                </div>
+
+                {/* Slug editor */}
+                {editingSlug ? (
+                  <div style={{ marginBottom: 16 }}>
+                    <input
+                      type="text"
+                      value={newSlug}
+                      onChange={(e) => {
+                        setNewSlug(e.target.value);
+                        setSlugError("");
+                      }}
+                      placeholder="Enter custom slug"
+                      style={{
+                        width: "100%",
+                        padding: "10px 12px",
+                        fontSize: 13,
+                        border: slugError ? "1px solid #d44" : "1px solid #ddd",
+                        borderRadius: 4,
+                        marginBottom: 8,
+                        fontFamily: "monospace",
+                      }}
+                    />
+                    {slugError && (
+                      <p
+                        style={{
+                          fontSize: 11,
+                          color: "#d44",
+                          margin: "0 0 8px 0",
+                        }}
+                      >
+                        {slugError}
+                      </p>
+                    )}
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        onClick={handleSaveSlug}
+                        disabled={loadingShare}
+                        style={{
+                          flex: 1,
+                          padding: "10px 16px",
+                          fontSize: 11,
+                          letterSpacing: 0.5,
+                          border: "1px solid #333",
+                          borderRadius: 4,
+                          background: "#333",
+                          color: "#fff",
+                          cursor: loadingShare ? "not-allowed" : "pointer",
+                          opacity: loadingShare ? 0.6 : 1,
+                        }}
+                      >
+                        {loadingShare ? "Saving..." : "Save"}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingSlug(false);
+                          setNewSlug(galleryShare.slug);
+                          setSlugError("");
+                        }}
+                        disabled={loadingShare}
+                        style={{
+                          flex: 1,
+                          padding: "10px 16px",
+                          fontSize: 11,
+                          letterSpacing: 0.5,
+                          border: "1px solid #ddd",
+                          borderRadius: 4,
+                          background: "#fff",
+                          color: "#333",
+                          cursor: loadingShare ? "not-allowed" : "pointer",
+                          opacity: loadingShare ? 0.6 : 1,
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setEditingSlug(true)}
+                    style={{
+                      width: "100%",
+                      padding: "10px 16px",
+                      fontSize: 11,
+                      letterSpacing: 0.5,
+                      border: "1px solid #ddd",
+                      borderRadius: 4,
+                      background: "#fff",
+                      color: "#666",
+                      cursor: "pointer",
+                      marginBottom: 16,
+                    }}
+                  >
+                    Edit Slug
+                  </button>
+                )}
+
+                {/* Action buttons */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <button
+                    onClick={handleCopyGalleryLink}
+                    style={{
+                      padding: "12px 20px",
+                      fontSize: 12,
+                      letterSpacing: 0.5,
+                      border: "1px solid #ddd",
+                      borderRadius: 4,
+                      background: copySuccess ? "#4a4" : "#fff",
+                      color: copySuccess ? "#fff" : "#333",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    {copySuccess ? "Copied!" : "Copy Share Link"}
+                  </button>
+                  <button
+                    onClick={handleOpenGalleryPreview}
+                    style={{
+                      padding: "12px 20px",
+                      fontSize: 12,
+                      letterSpacing: 0.5,
+                      border: "1px solid #333",
+                      borderRadius: 4,
+                      background: "#333",
+                      color: "#fff",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Open Gallery
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
