@@ -2,9 +2,8 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import Link from "next/link";
-import { listPostsWithAssets, uploadImage } from "../../lib/gallery/db";
+import { listPostsWithAssets, uploadImage, deletePost, deleteAsset } from "../../lib/gallery/db";
 import type { PostWithAsset } from "../../lib/gallery/types";
-import { DEFAULT_GALLERY_POSTS } from "../../lib/gallery/defaultGallery";
 
 export default function GalleryPage() {
   const [posts, setPosts] = useState<PostWithAsset[]>([]);
@@ -98,6 +97,22 @@ export default function GalleryPage() {
     window.open('/preview/gallery', '_blank');
   }
 
+  async function handleDelete(postId: string, assetId: string, e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!confirm('Delete this image?')) return;
+    
+    try {
+      await deletePost(postId);
+      await deleteAsset(assetId);
+      await loadPosts();
+    } catch (err) {
+      console.error("Failed to delete:", err);
+      alert("Failed to delete image");
+    }
+  }
+
   return (
     <div
       style={{
@@ -139,25 +154,22 @@ export default function GalleryPage() {
         >
           Gallery
         </h1>
-        {posts.length > 0 && (
-          <button
-            onClick={() => setShowExportModal(true)}
-            style={{
-              fontSize: 11,
-              letterSpacing: 1,
-              textTransform: "uppercase",
-              background: "transparent",
-              border: "none",
-              color: "#666",
-              cursor: "pointer",
-              padding: "4px 8px",
-              fontWeight: 500,
-            }}
-          >
-            Export
-          </button>
-        )}
-        {posts.length === 0 && <div style={{ width: 60 }} />}
+        <button
+          onClick={() => setShowExportModal(true)}
+          style={{
+            fontSize: 11,
+            letterSpacing: 1,
+            textTransform: "uppercase",
+            background: "transparent",
+            border: "none",
+            color: "#666",
+            cursor: "pointer",
+            padding: "4px 8px",
+            fontWeight: 500,
+          }}
+        >
+          Export
+        </button>
       </div>
 
       {/* Upload area */}
@@ -238,19 +250,34 @@ export default function GalleryPage() {
             Loading...
           </div>
         ) : posts.length === 0 ? (
-          <>
-            {/* Default gallery - shown only when no user posts */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-                gap: 20,
-              }}
-            >
-              {DEFAULT_GALLERY_POSTS.map((item) => (
+          <div
+            style={{
+              textAlign: "center",
+              fontSize: 12,
+              color: "#ccc",
+              marginTop: 60,
+              letterSpacing: 1,
+            }}
+          >
+            Your gallery begins here.
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+              gap: 20,
+            }}
+          >
+            {posts.map((post) => (
+              <div
+                key={post.id}
+                style={{
+                  position: "relative",
+                }}
+              >
                 <Link
-                  key={item.id}
-                  href={`/preview/p/${item.id}`}
+                  href={`/p/${post.id}`}
                   style={{
                     textDecoration: "none",
                     display: "block",
@@ -262,20 +289,19 @@ export default function GalleryPage() {
                       backgroundColor: "#f0f0f0",
                       borderRadius: 4,
                       overflow: "hidden",
-                      opacity: 0.7,
                       cursor: "pointer",
-                      transition: "opacity 0.2s ease",
+                      transition: "transform 0.2s ease",
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.opacity = "0.9";
+                      e.currentTarget.style.transform = "scale(0.98)";
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.opacity = "0.7";
+                      e.currentTarget.style.transform = "scale(1)";
                     }}
                   >
                     <img
-                      src={item.imageUrl}
-                      alt={item.caption}
+                      src={getObjectURL(post.asset.blob)}
+                      alt={post.caption || "Gallery image"}
                       style={{
                         width: "100%",
                         height: "100%",
@@ -283,89 +309,50 @@ export default function GalleryPage() {
                       }}
                     />
                   </div>
-                  {item.caption && (
+                  {post.caption && (
                     <p
                       style={{
                         fontSize: 12,
-                        color: "#999",
+                        color: "#666",
                         marginTop: 8,
                         lineHeight: 1.4,
                       }}
                     >
-                      {item.caption}
+                      {post.caption}
                     </p>
                   )}
                 </Link>
-              ))}
-            </div>
-            <div
-              style={{
-                textAlign: "center",
-                fontSize: 12,
-                color: "#ccc",
-                marginTop: 60,
-                letterSpacing: 1,
-              }}
-            >
-              Your gallery begins here.
-            </div>
-          </>
-        ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-              gap: 20,
-            }}
-          >
-            {posts.map((post) => (
-              <Link
-                key={post.id}
-                href={`/p/${post.id}`}
-                style={{
-                  textDecoration: "none",
-                  display: "block",
-                }}
-              >
-                <div
+                <button
+                  onClick={(e) => handleDelete(post.id, post.assetId, e)}
                   style={{
-                    aspectRatio: "1/1",
-                    backgroundColor: "#f0f0f0",
-                    borderRadius: 4,
-                    overflow: "hidden",
+                    position: "absolute",
+                    top: 6,
+                    right: 6,
+                    background: "rgba(0, 0, 0, 0.6)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 3,
+                    width: 20,
+                    height: 20,
                     cursor: "pointer",
-                    transition: "transform 0.2s ease",
+                    fontSize: 14,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    opacity: 0.7,
+                    transition: "opacity 0.2s ease",
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "scale(0.98)";
+                    e.currentTarget.style.opacity = "1";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "scale(1)";
+                    e.currentTarget.style.opacity = "0.7";
                   }}
+                  title="Delete"
                 >
-                  <img
-                    src={getObjectURL(post.asset.blob)}
-                    alt={post.caption || "Gallery image"}
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
-                    }}
-                  />
-                </div>
-                {post.caption && (
-                  <p
-                    style={{
-                      fontSize: 12,
-                      color: "#666",
-                      marginTop: 8,
-                      lineHeight: 1.4,
-                    }}
-                  >
-                    {post.caption}
-                  </p>
-                )}
-              </Link>
+                  ×
+                </button>
+              </div>
             ))}
           </div>
         )}

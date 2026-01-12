@@ -563,11 +563,11 @@ function ExportButtons({
     <div
       style={{
         position: "fixed",
-        bottom: 32,
-        right: 32,
+        bottom: 24,
+        right: 24,
         display: "flex",
         flexDirection: "column",
-        gap: 12,
+        gap: 8,
         zIndex: 100,
       }}
     >
@@ -577,22 +577,22 @@ function ExportButtons({
           background: isDarkMode ? "#2a2a2a" : "#fff",
           color: isDarkMode ? "#ddd" : "#666",
           border: `1px solid ${isDarkMode ? "#444" : "#ddd"}`,
-          padding: "12px 20px",
-          borderRadius: 8,
+          padding: "8px 14px",
+          borderRadius: 6,
           cursor: "pointer",
-          fontSize: 11,
-          letterSpacing: 1,
+          fontSize: 10,
+          letterSpacing: 0.8,
           textTransform: "uppercase",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
           transition: "all 0.2s ease",
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.transform = "translateY(-2px)";
-          e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.25)";
+          e.currentTarget.style.transform = "translateY(-1px)";
+          e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.18)";
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.transform = "translateY(0)";
-          e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+          e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.12)";
         }}
       >
         Desktop
@@ -603,23 +603,23 @@ function ExportButtons({
           background: isDarkMode ? "#444" : "#333",
           color: "#fff",
           border: `1px solid ${isDarkMode ? "#555" : "#333"}`,
-          padding: "12px 20px",
-          borderRadius: 8,
+          padding: "8px 14px",
+          borderRadius: 6,
           cursor: "pointer",
-          fontSize: 11,
-          letterSpacing: 1,
+          fontSize: 10,
+          letterSpacing: 0.8,
           textTransform: "uppercase",
           fontWeight: 600,
-          boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
           transition: "all 0.2s ease",
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.transform = "translateY(-2px)";
-          e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.3)";
+          e.currentTarget.style.transform = "translateY(-1px)";
+          e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.25)";
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.transform = "translateY(0)";
-          e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.2)";
+          e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)";
         }}
       >
         Phone
