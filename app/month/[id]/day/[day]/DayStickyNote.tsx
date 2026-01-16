@@ -39,101 +39,90 @@ export default function DayStickyNote({ tasks, onToggleTask, isStudio }: DayStic
       >
         <div
           style={{
-            width: 2,
-            height: 32,
-            background: isVisible 
-              ? (isStudio ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.2)")
-              : (isStudio ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.08)"),
-            transition: "all 0.3s ease",
+            fontSize: 11,
+            color: isStudio ? "#666" : "#999",
+            letterSpacing: 1,
+            textTransform: "uppercase",
+            writingMode: "vertical-rl",
+            textOrientation: "mixed",
           }}
-        />
+        >
+          Tasks
+        </div>
       </div>
 
-      {/* Sticky note */}
+      {/* Sticky note panel */}
       <div
-        onMouseEnter={() => setIsVisible(true)}
         onMouseLeave={() => setIsVisible(false)}
         style={{
           position: "fixed",
-          right: isVisible ? 32 : -320,
+          right: isVisible ? 0 : -280,
           top: "50%",
           transform: "translateY(-50%)",
           width: 280,
-          maxHeight: 400,
-          background: isStudio ? "#0a0a0a" : "#ffffff",
-          border: isStudio ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.06)",
-          boxShadow: isStudio 
-            ? "0 8px 32px rgba(0,0,0,0.6)" 
-            : "0 8px 32px rgba(0,0,0,0.08)",
-          padding: "32px 28px",
+          background: isStudio ? "#2a2a2a" : "#fffbcc",
+          boxShadow: isVisible ? "-4px 0 12px rgba(0,0,0,0.15)" : "none",
+          transition: "right 0.3s ease",
           zIndex: 999,
-          transition: "right 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-          fontFamily: "inherit",
-          overflowY: "auto",
+          padding: 24,
+          borderTopLeftRadius: 8,
+          borderBottomLeftRadius: 8,
         }}
       >
-        {/* Header */}
         <div
           style={{
-            fontSize: 10,
-            letterSpacing: 1.5,
+            fontSize: 12,
+            fontWeight: 600,
+            marginBottom: 16,
+            color: isStudio ? "#fff" : "#333",
+            letterSpacing: 0.5,
             textTransform: "uppercase",
-            color: isStudio ? "#666" : "#999",
-            marginBottom: 24,
-            fontWeight: 400,
           }}
         >
-          Today
+          Quick Tasks
         </div>
 
-        {/* Task list */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {displayTasks.map((task) => {
-            const isDone = task.status === "done";
-            const isSkipped = task.status === "skipped";
-            
-            return (
-              <div
-                key={task.id}
-                onClick={() => onToggleTask(task.id)}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {displayTasks.map((task) => (
+            <div
+              key={task.id}
+              onClick={() => onToggleTask(task.id)}
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 10,
+                cursor: "pointer",
+                padding: 8,
+                borderRadius: 4,
+                background: isStudio ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.02)",
+                transition: "background 0.2s",
+              }}
+            >
+              <span
                 style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 12,
-                  cursor: "pointer",
-                  opacity: isDone || isSkipped ? 0.3 : 1,
-                  transition: "opacity 0.2s ease",
+                  fontSize: 14,
+                  minWidth: 18,
+                  textAlign: "center",
+                  marginTop: 2,
                 }}
               >
-                <span
-                  style={{
-                    fontSize: 13,
-                    lineHeight: 1.5,
-                    flexShrink: 0,
-                    marginTop: 2,
-                    color: isStudio ? "#666" : "#bbb",
-                  }}
-                >
-                  {getTaskStatusGlyph(task.status)}
-                </span>
-                <span
-                  style={{
-                    fontSize: 14,
-                    lineHeight: 1.6,
-                    color: isStudio ? "#ddd" : "#333",
-                    textDecoration: isDone ? "line-through" : "none",
-                    wordBreak: "break-word",
-                    fontWeight: 300,
-                  }}
-                >
-                  {task.text}
-                </span>
-              </div>
-            );
-          })}
+                {getTaskStatusGlyph(task.status)}
+              </span>
+              <span
+                style={{
+                  fontSize: 13,
+                  lineHeight: 1.4,
+                  color: isStudio ? "#ccc" : "#444",
+                  textDecoration: task.status === "done" ? "line-through" : "none",
+                  opacity: task.status === "done" ? 0.6 : 1,
+                }}
+              >
+                {task.text}
+              </span>
+            </div>
+          ))}
         </div>
 
-        {/* Footer hint */}
         {tasks.length > 7 && (
           <div
             style={{

@@ -96,26 +96,25 @@ export default async function PublicGalleryPage({ params }: PageProps) {
     <div
       style={{
         minHeight: "100vh",
-        backgroundColor: "#fafafa",
-        padding: "40px 20px",
+        backgroundColor: "#fff",
+        padding: 0,
       }}
     >
       {/* Header */}
       <div
         style={{
-          maxWidth: 1200,
-          margin: "0 auto 40px",
-          textAlign: "center",
+          padding: "40px 60px",
+          borderBottom: "1px solid #eee",
         }}
       >
         <h1
           style={{
-            fontSize: 14,
-            fontWeight: 600,
+            fontSize: 13,
+            fontWeight: 500,
             letterSpacing: 2,
             textTransform: "uppercase",
             color: "#333",
-            margin: "0 0 12px 0",
+            margin: "0 0 8px 0",
           }}
         >
           {galleryShare.title}
@@ -123,9 +122,9 @@ export default async function PublicGalleryPage({ params }: PageProps) {
         {galleryShare.description && (
           <p
             style={{
-              fontSize: 13,
+              fontSize: 12,
               lineHeight: 1.6,
-              color: "#666",
+              color: "#999",
               margin: 0,
             }}
           >
@@ -138,29 +137,27 @@ export default async function PublicGalleryPage({ params }: PageProps) {
       {galleryPosts.length === 0 ? (
         <div
           style={{
-            maxWidth: 1200,
-            margin: "60px auto",
+            padding: "100px 60px",
             textAlign: "center",
           }}
         >
           <p
             style={{
-              fontSize: 13,
-              color: "#999",
-              letterSpacing: 0.5,
+              fontSize: 12,
+              color: "#ccc",
+              letterSpacing: 1,
             }}
           >
-            No images published yet.
+            NO IMAGES PUBLISHED YET
           </p>
         </div>
       ) : (
         <div
           style={{
-            maxWidth: 1200,
-            margin: "0 auto",
+            padding: "60px",
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-            gap: 16,
+            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+            gap: 40,
           }}
         >
           {galleryPosts.map((post) => (
@@ -168,39 +165,40 @@ export default async function PublicGalleryPage({ params }: PageProps) {
               key={post.id}
               style={{
                 position: "relative",
-                aspectRatio: "1",
-                backgroundColor: "#fff",
-                borderRadius: 4,
-                overflow: "hidden",
-                border: "1px solid #eee",
               }}
+              className="public-gallery-item"
             >
-              <img
-                src={post.image_url}
-                alt={post.caption || "Gallery image"}
+              <div
                 style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
+                  aspectRatio: "4/5",
+                  backgroundColor: "#fafafa",
+                  overflow: "hidden",
+                  cursor: "pointer",
                 }}
-              />
-              {post.caption && (
-                <div
+              >
+                <img
+                  src={post.image_url}
+                  alt={post.caption || ""}
                   style={{
-                    position: "absolute",
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    padding: "12px",
-                    background:
-                      "linear-gradient(to top, rgba(0,0,0,0.6), transparent)",
-                    color: "#fff",
-                    fontSize: 12,
-                    lineHeight: 1.4,
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    transition: "transform 0.3s ease",
+                  }}
+                />
+              </div>
+              {post.caption && (
+                <p
+                  style={{
+                    marginTop: 12,
+                    fontSize: 11,
+                    lineHeight: 1.6,
+                    color: "#666",
+                    letterSpacing: 0.3,
                   }}
                 >
                   {post.caption}
-                </div>
+                </p>
               )}
             </div>
           ))}
@@ -210,17 +208,22 @@ export default async function PublicGalleryPage({ params }: PageProps) {
       {/* Footer */}
       <div
         style={{
-          maxWidth: 1200,
-          margin: "60px auto 0",
+          padding: "40px 60px",
+          borderTop: "1px solid #eee",
           textAlign: "center",
-          fontSize: 11,
-          color: "#999",
-          letterSpacing: 1,
         }}
       >
         {galleryPosts.length > 0 && (
-          <p style={{ margin: 0 }}>
-            {galleryPosts.length} {galleryPosts.length === 1 ? "image" : "images"}
+          <p
+            style={{
+              margin: 0,
+              fontSize: 10,
+              color: "#ccc",
+              letterSpacing: 1.5,
+              textTransform: "uppercase",
+            }}
+          >
+            {galleryPosts.length} {galleryPosts.length === 1 ? "Image" : "Images"}
           </p>
         )}
       </div>

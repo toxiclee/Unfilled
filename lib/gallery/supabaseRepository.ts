@@ -4,7 +4,7 @@
 
 import type { GalleryRepository } from './repository';
 import type { PostWithAsset } from './types';
-import { supabase, isSupabaseConfigured } from '../supabase/client';
+import { getSupabaseClient, isSupabaseConfigured } from '../supabase/client';
 
 export class SupabaseGalleryRepository implements GalleryRepository {
   async listPosts(limit: number = 100): Promise<PostWithAsset[]> {

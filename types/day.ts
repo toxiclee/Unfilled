@@ -28,6 +28,11 @@ export interface DayEntry {
   media: {
     url: string;
     type: "image" | "video";
+    adjust?: {
+      scale: number;
+      positionX: number;
+      positionY: number;
+    };
   } | null;
   notes: Note[];
   tasks: Task[];

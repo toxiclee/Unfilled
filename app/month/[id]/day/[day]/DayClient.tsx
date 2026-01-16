@@ -12,6 +12,7 @@ import {
 } from "../../../../../types/day";
 import { loadDayEntry, debouncedSave } from "../../../../../lib/dayStorage";
 import DayStickyNote from "./DayStickyNote";
+import DayExportModal from "./DayExportModal";
 
 // Add stroke animation keyframe
 if (typeof document !== 'undefined') {
@@ -44,6 +45,10 @@ export default function DayClient({ monthId, day }: { monthId: string; day: stri
   const [showGesture, setShowGesture] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selectedFont, setSelectedFont] = useState<string>("serif");
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [showImageAdjust, setShowImageAdjust] = useState(false);
+  const [imageScale, setImageScale] = useState(1);
+  const [imagePosition, setImagePosition] = useState({ x: 50, y: 50 });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isStudio = template === "studio";
@@ -57,6 +62,12 @@ export default function DayClient({ monthId, day }: { monthId: string; day: stri
     const freeNotes = loaded.notes.filter(n => n.type === "free");
     if (freeNotes.length > 0) {
       setNoteDraft(freeNotes.map(n => n.text).join("\n\n"));
+    }
+    
+    // Load saved image adjustments
+    if (loaded.media?.adjust) {
+      setImageScale(loaded.media.adjust.scale);
+      setImagePosition({ x: loaded.media.adjust.positionX, y: loaded.media.adjust.positionY });
     }
   }, [dayId]);
 
@@ -79,9 +90,33 @@ export default function DayClient({ monthId, day }: { monthId: string; day: stri
 
     const url = URL.createObjectURL(file);
     updateEntry({
-      media: { url, type: "image" }
+      media: { 
+        url, 
+        type: "image",
+        adjust: {
+          scale: imageScale,
+          positionX: imagePosition.x,
+          positionY: imagePosition.y
+        }
+      }
     });
   };
+  
+  // Save image adjustments
+  const saveImageAdjustments = useCallback(() => {
+    if (dayEntry.media) {
+      updateEntry({
+        media: {
+          ...dayEntry.media,
+          adjust: {
+            scale: imageScale,
+            positionX: imagePosition.x,
+            positionY: imagePosition.y
+          }
+        }
+      });
+    }
+  }, [dayEntry.media, imageScale, imagePosition, updateEntry]);
 
   // Task handlers
   const addTask = useCallback(() => {
@@ -377,25 +412,35 @@ export default function DayClient({ monthId, day }: { monthId: string; day: stri
         alignItems: 'center', 
         padding: '60px 20px' 
       }}>
-        {/* Image container */}
-        <div 
-          onClick={() => fileInputRef.current?.click()}
-          style={{ 
-            width: '100%', 
-            maxWidth: '900px', 
-            aspectRatio: '16/9',
-            backgroundColor: isStudio ? '#222' : '#fff',
-            padding: isStudio ? '0' : '20px',
-            boxShadow: isStudio ? 'none' : '0 20px 40px rgba(0,0,0,0.05)',
-            border: isStudio ? `1px dashed #444` : '1px solid #eee',
-            cursor: 'pointer',
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            overflow: 'hidden',
-            position: 'relative'
-          }}
-        >
+        {/* Image container wrapper */}
+        <div style={{ 
+          display: 'flex', 
+          gap: 24, 
+          width: '100%', 
+          maxWidth: showImageAdjust ? '1200px' : '900px',
+          justifyContent: 'center',
+          transition: 'max-width 0.3s ease'
+        }}>
+          {/* Image container */}
+          <div 
+            onClick={() => !dayEntry.media?.url && fileInputRef.current?.click()}
+            style={{ 
+              width: showImageAdjust ? 'calc(100% - 280px)' : '100%', 
+              maxWidth: '900px', 
+              aspectRatio: '16/9',
+              backgroundColor: isStudio ? '#222' : '#fff',
+              padding: isStudio ? '0' : '20px',
+              boxShadow: isStudio ? 'none' : '0 20px 40px rgba(0,0,0,0.05)',
+              border: isStudio ? `1px dashed #444` : '1px solid #eee',
+              cursor: dayEntry.media?.url ? 'default' : 'pointer',
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              overflow: 'hidden',
+              position: 'relative',
+              transition: 'width 0.3s ease'
+            }}
+          >
           {dayEntry.media?.url ? (
             <>
               <img 
@@ -404,9 +449,47 @@ export default function DayClient({ monthId, day }: { monthId: string; day: stri
                 style={{ 
                   width: '100%', 
                   height: '100%', 
-                  objectFit: 'contain' 
+                  objectFit: 'contain',
+                  objectPosition: showImageAdjust ? `${imagePosition.x}% ${imagePosition.y}%` : 'center',
+                  transform: showImageAdjust ? `scale(${imageScale})` : 'none',
+                  transformOrigin: `${imagePosition.x}% ${imagePosition.y}%`,
+                  transition: showImageAdjust ? 'none' : 'all 0.3s ease'
                 }} 
               />
+              
+              {/* Adjust button */}
+              {isStudio && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (showImageAdjust) {
+                      // Save adjustments when done
+                      saveImageAdjustments();
+                    }
+                    setShowImageAdjust(!showImageAdjust);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: 12,
+                    right: 12,
+                    padding: '8px 14px',
+                    fontSize: 11,
+                    letterSpacing: 1,
+                    textTransform: 'uppercase',
+                    background: showImageAdjust ? '#444' : 'rgba(0,0,0,0.6)',
+                    color: '#fff',
+                    border: showImageAdjust ? '1px solid #666' : '1px solid rgba(255,255,255,0.2)',
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                    backdropFilter: 'blur(8px)',
+                    zIndex: 10,
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  {showImageAdjust ? '✓ Save' : 'Adjust'}
+                </button>
+              )}
+              
               {!isStudio && captionNote && (
                 <div style={{
                   position: 'absolute',
@@ -440,6 +523,109 @@ export default function DayClient({ monthId, day }: { monthId: string; day: stri
             accept="image/*"
             onChange={handleImageUpload} 
           />
+        </div>
+
+        {/* Adjustment controls - vertical sidebar */}
+        {showImageAdjust && isStudio && dayEntry.media?.url && (
+          <div style={{
+            width: 160,
+            background: 'rgba(0, 0, 0, 0.9)',
+            backdropFilter: 'blur(10px)',
+            padding: '16px 12px',
+            borderRadius: 6,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 20,
+            border: '1px solid rgba(255,255,255,0.1)',
+            boxShadow: '0 2px 16px rgba(0,0,0,0.4)'
+          }}>
+            <div>
+              <div style={{ fontSize: 9, color: '#888', marginBottom: 4, letterSpacing: 0.8, textTransform: 'uppercase' }}>
+                Scale
+              </div>
+              <div style={{ fontSize: 16, color: '#fff', marginBottom: 8, fontWeight: 500, fontFeatureSettings: '"tnum"' }}>
+                {imageScale.toFixed(2)}×
+              </div>
+              <input
+                type="range"
+                min={0.5}
+                max={2}
+                step={0.05}
+                value={imageScale}
+                onChange={(e) => setImageScale(parseFloat(e.target.value))}
+                style={{ width: '100%', cursor: 'pointer', accentColor: '#666' }}
+              />
+            </div>
+            
+            <div>
+              <div style={{ fontSize: 9, color: '#888', marginBottom: 4, letterSpacing: 0.8, textTransform: 'uppercase' }}>
+                Position X
+              </div>
+              <div style={{ fontSize: 16, color: '#fff', marginBottom: 8, fontWeight: 500, fontFeatureSettings: '"tnum"' }}>
+                {imagePosition.x}%
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={imagePosition.x}
+                onChange={(e) => setImagePosition(prev => ({ ...prev, x: parseInt(e.target.value) }))}
+                style={{ width: '100%', cursor: 'pointer', accentColor: '#666' }}
+              />
+            </div>
+            
+            <div>
+              <div style={{ fontSize: 9, color: '#888', marginBottom: 4, letterSpacing: 0.8, textTransform: 'uppercase' }}>
+                Position Y
+              </div>
+              <div style={{ fontSize: 16, color: '#fff', marginBottom: 8, fontWeight: 500, fontFeatureSettings: '"tnum"' }}>
+                {imagePosition.y}%
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={imagePosition.y}
+                onChange={(e) => setImagePosition(prev => ({ ...prev, y: parseInt(e.target.value) }))}
+                style={{ width: '100%', cursor: 'pointer', accentColor: '#666' }}
+              />
+            </div>
+            
+            <button
+              onClick={() => {
+                setImageScale(1);
+                setImagePosition({ x: 50, y: 50 });
+              }}
+              style={{
+                marginTop: 4,
+                padding: '8px 12px',
+                fontSize: 11,
+                letterSpacing: 0.5,
+                background: '#222',
+                color: '#999',
+                border: '1px solid #444',
+                borderRadius: 4,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                textTransform: 'uppercase'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#333';
+                e.currentTarget.style.color = '#fff';
+                e.currentTarget.style.borderColor = '#555';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = '#222';
+                e.currentTarget.style.color = '#999';
+                e.currentTarget.style.borderColor = '#444';
+              }}
+            >
+              Reset
+            </button>
+          </div>
+        )}
         </div>
 
         {/* Day info + content */}
@@ -866,7 +1052,7 @@ export default function DayClient({ monthId, day }: { monthId: string; day: stri
           Preview
         </button>
         <button 
-          onClick={exportWallpaper} 
+          onClick={() => setShowExportModal(true)} 
           style={{ 
             padding: '12px 20px', 
             borderRadius: 8,
@@ -944,6 +1130,15 @@ export default function DayClient({ monthId, day }: { monthId: string; day: stri
         onToggleTask={toggleTaskStatus}
         isStudio={isStudio}
       />
+
+      {/* Export modal */}
+      {showExportModal && (
+        <DayExportModal
+          dayId={dayId}
+          onClose={() => setShowExportModal(false)}
+          onGenerateCanvas={generateWallpaperCanvas}
+        />
+      )}
     </div>
   );
 }

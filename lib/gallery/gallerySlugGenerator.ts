@@ -1,88 +1,128 @@
-/**
- * Gallery-wide slug generator
- * Generates beautiful, human-friendly slugs for the entire gallery portfolio
- */
+// lib/gallery/gallerySlugGenerator.ts
 
-// Curated word pool for elegant gallery slugs
-const WORD_POOL = [
-  "unfilled",
-  "not-yet",
-  "still",
-  "warm",
-  "quiet",
-  "lingering",
-  "afterglow",
-  "hush",
-  "drift",
-  "soft-light",
-  "slow-morning",
-];
+export type SlugValidationResult =
+  | { ok: true; normalized: string }
+  | { ok: false; error: string };
 
-// Reserved slugs that cannot be used
-const RESERVED_SLUGS = [
-  "month",
-  "calendar",
-  "gallery",
-  "preview",
-  "api",
-  "login",
-  "admin",
-  "u",
-  "s",
-  "p",
-  "g",
-  "library",
-];
+export type SlugOptions = {
+  minLength?: number;
+  maxLength?: number;
+  forbidReserved?: boolean;
+};
 
-/**
- * Validate slug format and availability
- */
-export function validateSlug(slug: string): {
-  valid: boolean;
-  error?: string;
-} {
-  // Check length
-  if (slug.length < 3 || slug.length > 40) {
-    return { valid: false, error: "Slug must be 3-40 characters" };
+export function validateSlug(input: string, opts: SlugOptions = {}): SlugValidationResult {
+  const minLength = opts.minLength ?? 3;
+  const maxLength = opts.maxLength ?? 40;
+  const forbidReserved = opts.forbidReserved ?? true;
+
+  const raw = (input ?? "").trim();
+  if (!raw) {
+    return { ok: false, error: "Slug cannot be empty." };
   }
 
-  // Check format: lowercase, a-z, 0-9, hyphen only
-  if (!/^[a-z0-9-]+$/.test(slug)) {
+  let normalized = raw.toLowerCase();
+  normalized = normalized.replace(/[\s_]+/g, "-");
+  normalized = normalized.replace(/[^a-z0-9-]/g, "");
+  normalized = normalized.replace(/-+/g, "-");
+  normalized = normalized.replace(/^-+/, "").replace(/-+$/, "");
+
+  if (!normalized) {
     return {
-      valid: false,
-      error: "Slug can only contain lowercase letters, numbers, and hyphens",
+      ok: false,
+      error: "Slug must contain at least one letter or number.",
     };
   }
 
-  // Check if reserved
-  if (RESERVED_SLUGS.includes(slug)) {
-    return { valid: false, error: "This slug is reserved" };
+  if (normalized.length < minLength) {
+    return {
+      ok: false,
+      error: `Slug must be at least ${minLength} characters.`,
+    };
   }
 
-  return { valid: true };
-}
-
-/**
- * Generate a random slug from the word pool
- */
-export function generateRandomSlug(): string {
-  const randomIndex = Math.floor(Math.random() * WORD_POOL.length);
-  return WORD_POOL[randomIndex];
-}
-
-/**
- * Generate a slug with numeric suffix if base is taken
- */
-export function generateSlugWithSuffix(baseSlug: string, attempt: number = 1): string {
-  if (attempt === 1) {
-    return baseSlug;
+  if (normalized.length > maxLength) {
+    return {
+      ok: false,
+      error: `Slug must be at most ${maxLength} characters.`,
+    };
   }
-  return `${baseSlug}-${attempt}`;
+
+  if (!/^[a-z0-9]/.test(normalized)) {
+    return { ok: false, error: "Slug must start with a letter or number." };
+  }
+
+  if (!/[a-z0-9]$/.test(normalized)) {
+    return { ok: false, error: "Slug must end with a letter or number." };
+  }
+
+  if (forbidReserved && isReservedSlug(normalized)) {
+    return { ok: false, error: "This slug is reserved. Please choose another one." };
+  }
+
+  return { ok: true, normalized };
 }
 
-/**
- * Check if a slug is from our curated word pool
- */
-export function isFromWordPool(slug: string): boolean {
-  return WORD_POOL.includes(slug);
+export function generateRandomSlug(prefix?: string): string {
+  const wordsA = ["silent", "bright", "soft", "golden", "midnight", "little", "wild", "calm", "warm", "cool"];
+  const wordsB = ["forest", "studio", "window", "river", "shadow", "archive", "gallery", "memory", "frame", "season"];
+
+  const a = wordsA[Math.floor(Math.random() * wordsA.length)];
+  const b = wordsB[Math.floor(Math.random() * wordsB.length)];
+  const suffix = Math.random().toString(36).slice(2, 6);
+
+  const base = `${a}-${b}-${suffix}`;
+  const withPrefix = prefix ? `${prefix}-${base}` : base;
+
+  const v = validateSlug(withPrefix, { minLength: 3, maxLength: 40, forbidReserved: true });
+  return v.ok ? v.normalized : base;
+}
+
+export function generateSlugWithSuffix(base: string, suffix: string | number): string {
+  const cleanedBase = validateSlug(base, { forbidReserved: false });
+  const baseNormalized = cleanedBase.ok ? cleanedBase.normalized : normalizeLoose(base);
+
+  const suffixNormalized = String(suffix).toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const combined = `${baseNormalized}-${suffixNormalized}`;
+
+  const v = validateSlug(combined, { forbidReserved: false });
+  return v.ok ? v.normalized : combined.slice(0, 40);
+}
+
+function normalizeLoose(input: string): string {
+  return (input ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-+/, "")
+    .replace(/-+$/, "")
+    .slice(0, 40);
+}
+
+export function isReservedSlug(slug: string): boolean {
+  const reserved = new Set([
+    "api",
+    "admin",
+    "login",
+    "logout",
+    "signup",
+    "signin",
+    "settings",
+    "account",
+    "profile",
+    "dashboard",
+    "billing",
+    "pricing",
+    "support",
+    "help",
+    "terms",
+    "privacy",
+    "month",
+    "gallery",
+    "_next",
+    "favicon.ico",
+  ]);
+
+  return reserved.has(slug);
 }

@@ -1,14 +1,26 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
-import { listPostsWithAssets, uploadImage, deletePost, deleteAsset } from "../../lib/gallery/db";
-import type { PostWithAsset } from "../../lib/gallery/types";
-import { getOrCreateDefaultGalleryShare, updateGalleryShareSlug, buildGalleryShareUrl, type GalleryShare } from "../../lib/gallery/galleryShareUtils";
+import { isSupabaseConfigured, getSupabaseClient } from "../../lib/supabase/client";
+import { uploadImageToSupabase, deleteImageFromSupabase } from "../../lib/gallery/uploadToSupabase";
+import {
+  getOrCreateDefaultGalleryShare,
+  updateGalleryShareSlug,
+  buildGalleryShareUrl,
+  type GalleryShare,
+} from "../../lib/gallery/galleryShareUtils";
 import { validateSlug } from "../../lib/gallery/gallerySlugGenerator";
-import { isSupabaseConfigured } from "../../lib/supabase/client";
+
+interface GalleryPost {
+  id: string;
+  image_url: string;
+  caption: string | null;
+  visibility: string;
+  created_at: string;
+}
 
 export default function GalleryPage() {
-  const [posts, setPosts] = useState<PostWithAsset[]>([]);
+  const [posts, setPosts] = useState<GalleryPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -20,25 +32,37 @@ export default function GalleryPage() {
   const [newSlug, setNewSlug] = useState("");
   const [slugError, setSlugError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const objectURLs = useRef<string[]>([]);
 
   // Load posts on mount
   useEffect(() => {
     loadPosts();
   }, []);
 
-  // Cleanup object URLs on unmount
-  useEffect(() => {
-    return () => {
-      objectURLs.current.forEach((url) => URL.revokeObjectURL(url));
-    };
-  }, []);
-
   async function loadPosts() {
     setLoading(true);
     try {
-      const loaded = await listPostsWithAssets(100);
-      setPosts(loaded);
+      if (!isSupabaseConfigured()) {
+        console.error("Supabase not configured");
+        return;
+      }
+
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        console.error("Failed to get Supabase client");
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("gallery_posts")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error loading posts:", error);
+        return;
+      }
+
+      setPosts(data || []);
     } catch (err) {
       console.error("Failed to load posts:", err);
     } finally {
@@ -51,12 +75,14 @@ export default function GalleryPage() {
 
     setUploading(true);
     try {
-      const uploads = Array.from(files).filter((f) =>
-        f.type.startsWith("image/")
-      );
+      const uploads = Array.from(files).filter((f) => f.type.startsWith("image/"));
 
       for (const file of uploads) {
-        await uploadImage(file);
+        const result = await uploadImageToSupabase(file);
+        if (!result.success) {
+          console.error("Upload failed:", result.error);
+          alert(`Failed to upload ${file.name}: ${result.error}`);
+        }
       }
 
       // Reload gallery
@@ -86,12 +112,6 @@ export default function GalleryPage() {
     handleFiles(e.dataTransfer.files);
   }
 
-  function getObjectURL(blob: Blob): string {
-    const url = URL.createObjectURL(blob);
-    objectURLs.current.push(url);
-    return url;
-  }
-
   function handleCopyGalleryLink() {
     if (!galleryShare) return;
     const url = buildGalleryShareUrl(galleryShare.slug, window.location.origin);
@@ -104,12 +124,12 @@ export default function GalleryPage() {
   function handleOpenGalleryPreview() {
     if (!galleryShare) return;
     const url = buildGalleryShareUrl(galleryShare.slug, window.location.origin);
-    window.open(url, '_blank');
+    window.open(url, "_blank");
   }
 
   async function loadGalleryShare() {
     if (!isSupabaseConfigured()) return;
-    
+
     setLoadingShare(true);
     try {
       const share = await getOrCreateDefaultGalleryShare();
@@ -129,16 +149,16 @@ export default function GalleryPage() {
 
     // Validate
     const validation = validateSlug(newSlug.trim());
-    if (!validation.valid) {
-      setSlugError(validation.error || "Invalid slug");
+    if (validation.ok === false) {
+      setSlugError(validation.error);
       return;
     }
 
     setLoadingShare(true);
     setSlugError("");
-    
+
     try {
-      const result = await updateGalleryShareSlug(galleryShare.id, newSlug.trim());
+      const result = await updateGalleryShareSlug(galleryShare.id, validation.normalized);
       if (result.success && result.share) {
         setGalleryShare(result.share);
         setEditingSlug(false);
@@ -158,15 +178,20 @@ export default function GalleryPage() {
     loadGalleryShare();
   }
 
-  async function handleDelete(postId: string, assetId: string, e: React.MouseEvent) {
+  async function handleDelete(postId: string, imageUrl: string, e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    
-    if (!confirm('Delete this image?')) return;
-    
+
+    if (!confirm("Delete this image?")) return;
+
     try {
-      await deletePost(postId);
-      await deleteAsset(assetId);
+      const result = await deleteImageFromSupabase(postId, imageUrl);
+      if (!result.success) {
+        console.error("Delete failed:", result.error);
+        alert(`Failed to delete: ${result.error}`);
+        return;
+      }
+
       await loadPosts();
     } catch (err) {
       console.error("Failed to delete:", err);
@@ -247,9 +272,7 @@ export default function GalleryPage() {
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
           style={{
-            border: dragActive
-              ? "2px dashed #333"
-              : "2px dashed #ddd",
+            border: dragActive ? "2px dashed #333" : "2px dashed #ddd",
             borderRadius: 8,
             padding: "60px 20px",
             textAlign: "center",
@@ -266,11 +289,7 @@ export default function GalleryPage() {
               textTransform: "uppercase",
             }}
           >
-            {uploading
-              ? "Uploading..."
-              : dragActive
-              ? "Drop images here"
-              : "+ Upload Images"}
+            {uploading ? "Uploading..." : dragActive ? "Drop images here" : "+ Upload Images"}
           </div>
           <div
             style={{
@@ -336,6 +355,7 @@ export default function GalleryPage() {
                 style={{
                   position: "relative",
                 }}
+                className="gallery-item"
               >
                 <div
                   style={{
@@ -344,22 +364,16 @@ export default function GalleryPage() {
                     borderRadius: 4,
                     overflow: "hidden",
                     cursor: "pointer",
-                    transition: "transform 0.2s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "scale(0.98)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "scale(1)";
                   }}
                 >
                   <img
-                    src={getObjectURL(post.asset.blob)}
+                    src={post.image_url}
                     alt={post.caption || "Gallery image"}
                     style={{
                       width: "100%",
                       height: "100%",
                       objectFit: "cover",
+                      transition: "transform 0.2s ease",
                     }}
                   />
                 </div>
@@ -376,7 +390,7 @@ export default function GalleryPage() {
                   </p>
                 )}
                 <button
-                  onClick={(e) => handleDelete(post.id, post.assetId, e)}
+                  onClick={(e) => handleDelete(post.id, post.image_url, e)}
                   style={{
                     position: "absolute",
                     top: 6,
@@ -392,18 +406,12 @@ export default function GalleryPage() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    opacity: 0.7,
                     transition: "opacity 0.2s ease",
                   }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.opacity = "1";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.opacity = "0.7";
-                  }}
+                  className="delete-button"
                   title="Delete"
                 >
-                  ×
+                  &times;
                 </button>
               </div>
             ))}
@@ -461,7 +469,7 @@ export default function GalleryPage() {
                 lineHeight: 1,
               }}
             >
-              ×
+              &times;
             </button>
 
             <h3
@@ -501,9 +509,7 @@ export default function GalleryPage() {
                 </p>
               </div>
             ) : loadingShare ? (
-              <p style={{ fontSize: 13, color: "#666", textAlign: "center" }}>
-                Loading...
-              </p>
+              <p style={{ fontSize: 13, color: "#666", textAlign: "center" }}>Loading...</p>
             ) : !galleryShare ? (
               <p style={{ fontSize: 13, color: "#999", textAlign: "center" }}>
                 Failed to load gallery share link.
@@ -518,7 +524,8 @@ export default function GalleryPage() {
                     margin: "0 0 24px 0",
                   }}
                 >
-                  Share your entire gallery ({posts.length} {posts.length === 1 ? 'image' : 'images'}) with a beautiful link.
+                  Share your entire gallery ({posts.length} {posts.length === 1 ? "image" : "images"}) with a beautiful
+                  link.
                 </p>
 
                 {/* Share URL display */}
@@ -534,7 +541,10 @@ export default function GalleryPage() {
                     wordBreak: "break-all",
                   }}
                 >
-                  {buildGalleryShareUrl(galleryShare.slug, typeof window !== 'undefined' ? window.location.origin : '')}
+                  {buildGalleryShareUrl(
+                    galleryShare.slug,
+                    typeof window !== "undefined" ? window.location.origin : ""
+                  )}
                 </div>
 
                 {/* Slug editor */}
@@ -559,15 +569,7 @@ export default function GalleryPage() {
                       }}
                     />
                     {slugError && (
-                      <p
-                        style={{
-                          fontSize: 11,
-                          color: "#d44",
-                          margin: "0 0 8px 0",
-                        }}
-                      >
-                        {slugError}
-                      </p>
+                      <p style={{ fontSize: 11, color: "#d44", margin: "0 0 8px 0" }}>{slugError}</p>
                     )}
                     <div style={{ display: "flex", gap: 8 }}>
                       <button
@@ -628,7 +630,7 @@ export default function GalleryPage() {
                       marginBottom: 16,
                     }}
                   >
-                    Edit Slug
+                    Edit ID
                   </button>
                 )}
 

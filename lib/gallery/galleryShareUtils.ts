@@ -124,7 +124,7 @@ export async function updateGalleryShareSlug(
 
   // Validate slug format
   const validation = validateSlug(newSlug);
-  if (!validation.valid) {
+  if (validation.ok === false) {
     return { success: false, error: validation.error };
   }
 
