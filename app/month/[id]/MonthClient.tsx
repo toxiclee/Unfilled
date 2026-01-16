@@ -768,48 +768,7 @@ function PosterMode({ year, monthIndex0, ym, mode, cells }: any) {
             style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
           />
 
-          {/* Export buttons */}
-          <div
-            style={{
-              position: "absolute",
-              bottom: 18,
-              left: 18,
-              display: "flex",
-              gap: 8,
-              alignItems: "center",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => exportPosterPDF("desktop")}
-              style={{
-                background: "rgba(0,0,0,0.6)",
-                color: "#fff",
-                border: "none",
-                padding: "6px 10px",
-                borderRadius: 16,
-                cursor: "pointer",
-                fontSize: 12,
-              }}
-            >
-              Export PDF (Desktop)
-            </button>
-            <button
-              onClick={() => exportPosterPDF("phone")}
-              style={{
-                background: "rgba(0,0,0,0.35)",
-                color: "#fff",
-                border: "none",
-                padding: "6px 10px",
-                borderRadius: 16,
-                cursor: "pointer",
-                fontSize: 12,
-              }}
-            >
-              Export PDF (Phone)
-            </button>
-          </div>
-
+          {/* Change Cover button */}
           <div
             style={{
               position: "absolute",

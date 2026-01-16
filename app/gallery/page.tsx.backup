@@ -38,10 +38,6 @@ export default function GalleryPage() {
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
 
-  // ---- New UI states ----
-  const [editMode, setEditMode] = useState(false);
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-
   const [showExportModal, setShowExportModal] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [galleryShare, setGalleryShare] = useState<GalleryShare | null>(null);
@@ -81,22 +77,6 @@ export default function GalleryPage() {
     loadPosts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user?.id]);
-
-  // ---- Keyboard navigation for lightbox ----
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (lightboxIndex === null) return;
-      if (e.key === "Escape") {
-        setLightboxIndex(null);
-      } else if (e.key === "ArrowLeft" && lightboxIndex > 0) {
-        setLightboxIndex(lightboxIndex - 1);
-      } else if (e.key === "ArrowRight" && lightboxIndex < posts.length - 1) {
-        setLightboxIndex(lightboxIndex + 1);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [lightboxIndex, posts.length]);
 
   async function loadPosts() {
     setLoading(true);
@@ -223,15 +203,7 @@ export default function GalleryPage() {
   }
 
   async function loadGalleryShare() {
-    if (!isSupabaseConfigured()) {
-      setLoadingShare(false);
-      return;
-    }
-
-    if (!canManage) {
-      setLoadingShare(false);
-      return;
-    }
+    if (!isSupabaseConfigured()) return;
 
     setLoadingShare(true);
     try {
@@ -289,7 +261,6 @@ export default function GalleryPage() {
       setShowExportModal(false);
       setGalleryShare(null);
       setCopySuccess(false);
-      setEditMode(false);
     } catch (e) {
       console.error("signOut error:", e);
     }
@@ -335,33 +306,22 @@ export default function GalleryPage() {
       {/* Header */}
       <div
         style={{
-          maxWidth: 1400,
-          margin: "0 auto 20px",
+          maxWidth: 1200,
+          margin: "0 auto 40px",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          flexWrap: "wrap",
-          gap: "12px",
         }}
       >
-        <a
-          href="/"
-          style={{
-            fontSize: 11,
-            letterSpacing: 1,
-            textDecoration: "none",
-            color: "#999",
-            textTransform: "uppercase",
-          }}
-        >
-          ← Home
+        <a href="/" style={{ fontSize: 11, letterSpacing: 1, textDecoration: "none", color: "#999" }}>
+          ← HOME
         </a>
 
         <h1
           style={{
             fontSize: 14,
             fontWeight: 600,
-            letterSpacing: 3,
+            letterSpacing: 2,
             textTransform: "uppercase",
             color: "#333",
             margin: 0,
@@ -370,46 +330,24 @@ export default function GalleryPage() {
           Gallery
         </h1>
 
-        <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-          {canManage && (
-            <button
-              onClick={() => setEditMode(!editMode)}
-              style={{
-                fontSize: 11,
-                letterSpacing: 1,
-                textTransform: "uppercase",
-                background: editMode ? "#333" : "transparent",
-                border: editMode ? "1px solid #333" : "1px solid #ddd",
-                color: editMode ? "#fff" : "#666",
-                cursor: "pointer",
-                padding: "6px 14px",
-                borderRadius: 4,
-                fontWeight: 500,
-                transition: "all 0.2s ease",
-              }}
-            >
-              {editMode ? "View" : "Edit"}
-            </button>
-          )}
-
-          {canManage && (
-            <button
-              onClick={handleExportClick}
-              style={{
-                fontSize: 11,
-                letterSpacing: 1,
-                textTransform: "uppercase",
-                background: "transparent",
-                border: "none",
-                color: "#666",
-                cursor: "pointer",
-                padding: "6px 8px",
-                fontWeight: 500,
-              }}
-            >
-              Export
-            </button>
-          )}
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <button
+            onClick={handleExportClick}
+            style={{
+              fontSize: 11,
+              letterSpacing: 1,
+              textTransform: "uppercase",
+              background: "transparent",
+              border: "none",
+              color: canManage ? "#666" : "#bbb",
+              cursor: "pointer",
+              padding: "4px 8px",
+              fontWeight: 500,
+            }}
+            title={canManage ? "Export" : "Sign in to export"}
+          >
+            Export
+          </button>
 
           {canManage ? (
             <button
@@ -420,11 +358,12 @@ export default function GalleryPage() {
                 textTransform: "uppercase",
                 background: "transparent",
                 border: "none",
-                color: "#999",
+                color: "#bbb",
                 cursor: "pointer",
-                padding: "6px 8px",
-                fontWeight: 400,
+                padding: "4px 8px",
+                fontWeight: 500,
               }}
+              title="Sign out"
             >
               Sign out
             </button>
@@ -436,35 +375,19 @@ export default function GalleryPage() {
                 letterSpacing: 1,
                 textTransform: "uppercase",
                 background: "transparent",
-                border: "1px solid #ddd",
+                border: "none",
                 color: "#666",
                 cursor: "pointer",
-                padding: "6px 14px",
-                borderRadius: 4,
+                padding: "4px 8px",
                 fontWeight: 500,
               }}
+              title="Sign in"
             >
               Sign in
             </button>
           )}
         </div>
       </div>
-
-      {/* Helper text when not signed in */}
-      {!canManage && (
-        <div
-          style={{
-            maxWidth: 1400,
-            margin: "0 auto 32px",
-            textAlign: "center",
-            fontSize: 11,
-            color: "#aaa",
-            letterSpacing: 0.5,
-          }}
-        >
-          Sign in to upload, curate, and export.
-        </div>
-      )}
 
       {/* Upload area */}
       <div style={{ maxWidth: 1200, margin: "0 auto 60px" }}>
@@ -514,259 +437,74 @@ export default function GalleryPage() {
       </div>
 
       {/* Gallery grid */}
-      <div style={{ maxWidth: 1400, margin: "0 auto", padding: "0 8px" }}>
+      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         {loading ? (
-          <div style={{ textAlign: "center", fontSize: 12, color: "#999", padding: "100px 0", letterSpacing: 1 }}>
+          <div style={{ textAlign: "center", fontSize: 12, color: "#999", padding: "60px 0" }}>
             Loading...
           </div>
         ) : posts.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "100px 20px" }}>
-            <div style={{ fontSize: 16, letterSpacing: 1, color: "#aaa", marginBottom: 12 }}>
-              {canManage ? "Add your first photos." : "A quiet space to curate your work."}
-            </div>
-            {!canManage && (
-              <div style={{ fontSize: 12, color: "#ccc", letterSpacing: 0.5 }}>Sign in to start.</div>
-            )}
+          <div style={{ textAlign: "center", fontSize: 12, color: "#ccc", marginTop: 60, letterSpacing: 1 }}>
+            {canManage ? "Your gallery begins here." : "Sign in to see your gallery."}
           </div>
         ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-              gap: 24,
-            }}
-          >
-            {posts.map((post, index) => (
-              <div
-                key={post.id}
-                style={{ position: "relative", cursor: "pointer" }}
-                onClick={() => setLightboxIndex(index)}
-                className="gallery-item"
-              >
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 20 }}>
+            {posts.map((post) => (
+              <div key={post.id} style={{ position: "relative" }} className="gallery-item">
                 <div
                   style={{
-                    aspectRatio: "4/3",
-                    backgroundColor: "#f5f5f5",
-                    borderRadius: 2,
+                    aspectRatio: "1/1",
+                    backgroundColor: "#f0f0f0",
+                    borderRadius: 4,
                     overflow: "hidden",
-                    position: "relative",
+                    cursor: "pointer",
                   }}
                 >
                   <img
                     src={post.image_url}
-                    alt={post.caption || `Image ${index + 1}`}
+                    alt={post.caption || "Gallery image"}
                     style={{
                       width: "100%",
                       height: "100%",
                       objectFit: "cover",
-                      transition: "transform 0.3s ease",
+                      transition: "transform 0.2s ease",
                     }}
                   />
-
-                  {/* Hover overlay */}
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      background: "linear-gradient(to bottom, rgba(0,0,0,0.3), transparent)",
-                      opacity: 0,
-                      transition: "opacity 0.2s ease",
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "space-between",
-                      padding: 12,
-                    }}
-                    className="hover-overlay"
-                  >
-                    <div style={{ fontSize: 11, color: "#fff", fontWeight: 600, letterSpacing: 1 }}>
-                      {String(index + 1).padStart(2, "0")}
-                    </div>
-                    {post.caption && (
-                      <div
-                        style={{
-                          fontSize: 11,
-                          color: "#fff",
-                          lineHeight: 1.4,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {post.caption}
-                      </div>
-                    )}
-                  </div>
                 </div>
 
-                {/* Delete button (only in edit mode) */}
-                {canManage && editMode && (
-                  <button
-                    onClick={(e) => handleDelete(post.id, post.image_url, e)}
-                    style={{
-                      position: "absolute",
-                      top: 8,
-                      right: 8,
-                      background: "rgba(0, 0, 0, 0.7)",
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: 4,
-                      width: 28,
-                      height: 28,
-                      cursor: "pointer",
-                      fontSize: 16,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      transition: "all 0.2s ease",
-                      zIndex: 10,
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "rgba(220, 50, 50, 0.9)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "rgba(0, 0, 0, 0.7)";
-                    }}
-                  >
-                    ×
-                  </button>
+                {post.caption && (
+                  <p style={{ fontSize: 12, color: "#666", marginTop: 8, lineHeight: 1.4 }}>{post.caption}</p>
                 )}
+
+                <button
+                  onClick={(e) => handleDelete(post.id, post.image_url, e)}
+                  style={{
+                    position: "absolute",
+                    top: 6,
+                    right: 6,
+                    background: canManage ? "rgba(0, 0, 0, 0.6)" : "rgba(0, 0, 0, 0.25)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 3,
+                    width: 20,
+                    height: 20,
+                    cursor: "pointer",
+                    fontSize: 14,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "opacity 0.2s ease",
+                    opacity: canManage ? 1 : 0.6,
+                  }}
+                  className="delete-button"
+                  title={canManage ? "Delete" : "Sign in to delete"}
+                >
+                  &times;
+                </button>
               </div>
             ))}
           </div>
         )}
       </div>
-
-      {/* Lightbox */}
-      {lightboxIndex !== null && posts[lightboxIndex] && (
-        <div
-          onClick={() => setLightboxIndex(null)}
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.95)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 10000,
-            padding: 20,
-          }}
-        >
-          {/* Close button */}
-          <button
-            onClick={() => setLightboxIndex(null)}
-            style={{
-              position: "absolute",
-              top: 20,
-              right: 20,
-              background: "transparent",
-              border: "none",
-              color: "#fff",
-              fontSize: 32,
-              cursor: "pointer",
-              padding: 0,
-              lineHeight: 1,
-              zIndex: 10001,
-            }}
-          >
-            ×
-          </button>
-
-          {/* Prev button */}
-          {lightboxIndex > 0 && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setLightboxIndex(lightboxIndex - 1);
-              }}
-              style={{
-                position: "absolute",
-                left: 20,
-                top: "50%",
-                transform: "translateY(-50%)",
-                background: "rgba(255, 255, 255, 0.1)",
-                border: "1px solid rgba(255, 255, 255, 0.3)",
-                color: "#fff",
-                fontSize: 24,
-                cursor: "pointer",
-                padding: "12px 16px",
-                borderRadius: 4,
-                zIndex: 10001,
-              }}
-            >
-              ‹
-            </button>
-          )}
-
-          {/* Next button */}
-          {lightboxIndex < posts.length - 1 && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setLightboxIndex(lightboxIndex + 1);
-              }}
-              style={{
-                position: "absolute",
-                right: 20,
-                top: "50%",
-                transform: "translateY(-50%)",
-                background: "rgba(255, 255, 255, 0.1)",
-                border: "1px solid rgba(255, 255, 255, 0.3)",
-                color: "#fff",
-                fontSize: 24,
-                cursor: "pointer",
-                padding: "12px 16px",
-                borderRadius: 4,
-                zIndex: 10001,
-              }}
-            >
-              ›
-            </button>
-          )}
-
-          {/* Image content */}
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              maxWidth: "90vw",
-              maxHeight: "85vh",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-            }}
-          >
-            <img
-              src={posts[lightboxIndex].image_url}
-              alt={posts[lightboxIndex].caption || `Image ${lightboxIndex + 1}`}
-              style={{
-                maxWidth: "100%",
-                maxHeight: "75vh",
-                objectFit: "contain",
-                borderRadius: 2,
-              }}
-            />
-            {posts[lightboxIndex].caption && (
-              <div
-                style={{
-                  marginTop: 20,
-                  fontSize: 13,
-                  color: "#fff",
-                  textAlign: "center",
-                  maxWidth: 600,
-                  lineHeight: 1.6,
-                }}
-              >
-                {posts[lightboxIndex].caption}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Auth modal (beautiful, no ugly redirect error page) */}
       {showAuthModal && (
@@ -1118,21 +856,6 @@ export default function GalleryPage() {
           </div>
         </div>
       )}
-
-      {/* CSS for hover effects */}
-      <style jsx>{`
-        .gallery-item:hover .hover-overlay {
-          opacity: 1;
-        }
-        .gallery-item:hover img {
-          transform: scale(1.02);
-        }
-        @media (max-width: 768px) {
-          .hover-overlay {
-            opacity: 0 !important;
-          }
-        }
-      `}</style>
     </div>
   );
 }

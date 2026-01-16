@@ -33,11 +33,19 @@ export async function getOrCreateDefaultGalleryShare(): Promise<GalleryShare | n
   }
 
   try {
+    // Check if user is authenticated
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) {
+      console.warn("User not authenticated - cannot create gallery share");
+      return null;
+    }
+
     // Try to get existing default
     const { data: existing, error: fetchError } = await supabase
       .from("gallery_shares")
       .select("*")
       .eq("is_default", true)
+      .order("updated_at", { ascending: false })
       .limit(1)
       .single();
 
@@ -54,6 +62,7 @@ export async function getOrCreateDefaultGalleryShare(): Promise<GalleryShare | n
       .insert({
         slug,
         title: "Unfilled Gallery",
+        description: null,
         visibility: "unlisted",
         is_default: true,
       })
